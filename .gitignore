@@ -8,3 +8,4 @@ checkpoints/
 reports/figures/
 *.log
 .ipynb_checkpoints/
+kaggle_push/run_output/
