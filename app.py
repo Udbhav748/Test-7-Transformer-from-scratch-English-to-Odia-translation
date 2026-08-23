@@ -483,6 +483,71 @@ with tab_eda:
     top_or = EDA_RESULTS.get("top_words_or", [])
     split_comp = EDA_RESULTS.get("split_composition", {})
 
+    en_chars = EDA_RESULTS.get("en_char_counts", [])
+    or_chars = EDA_RESULTS.get("or_char_counts", [])
+    en_awl = EDA_RESULTS.get("en_avg_word_len", [])
+    or_awl = EDA_RESULTS.get("or_avg_word_len", [])
+    en_unk = EDA_RESULTS.get("en_unk_counts", [])
+    or_unk = EDA_RESULTS.get("or_unk_counts", [])
+    en_unk_rate = EDA_RESULTS.get("en_unk_rate_pct")
+    or_unk_rate = EDA_RESULTS.get("or_unk_rate_pct")
+    en_end_punct = EDA_RESULTS.get("en_ending_punct", {})
+    or_end_punct = EDA_RESULTS.get("or_ending_punct", {})
+    en_pct_digits = EDA_RESULTS.get("en_pct_with_digits")
+    or_pct_digits = EDA_RESULTS.get("or_pct_with_digits")
+    vocab_stats = EDA_RESULTS.get("vocab_stats", {})
+    length_corr = EDA_RESULTS.get("length_correlation", {})
+    cleaning_funnel = EDA_RESULTS.get("cleaning_funnel", {})
+    descriptive_stats = EDA_RESULTS.get("descriptive_stats", {})
+    top_en_full = EDA_RESULTS.get("top_words_en_full", [])
+    top_or_full = EDA_RESULTS.get("top_words_or_full", [])
+
+    EDA_PALETTE_5 = [TEAL, AMBER, CRITICAL, "#0369A1", "#64748B"]
+
+    def _pie(counts, colors=None, height=320, sort_desc=True):
+        items = list(counts.items())
+        if sort_desc:
+            items.sort(key=lambda kv: kv[1], reverse=True)
+        cats = [str(k) for k, _ in items]
+        vals = [v for _, v in items]
+        total = sum(vals) or 1
+        df = pd.DataFrame({"category": cats, "value": vals, "pct": [v / total * 100 for v in vals]})
+        color_range = (colors or EDA_PALETTE_5)[: len(cats)]
+        return (
+            alt.Chart(df)
+            .mark_arc(innerRadius=65, outerRadius=125, stroke="#FFFFFF", strokeWidth=2)
+            .encode(
+                theta=alt.Theta("value:Q", stack=True),
+                color=alt.Color(
+                    "category:N",
+                    sort=cats,
+                    scale=alt.Scale(domain=cats, range=color_range),
+                    legend=alt.Legend(title=None, orient="bottom"),
+                ),
+                tooltip=[
+                    alt.Tooltip("category:N", title="Category"),
+                    alt.Tooltip("value:Q", title="Value"),
+                    alt.Tooltip("pct:Q", title="Share", format=".1f"),
+                ],
+            )
+            .configure_view(strokeWidth=0)
+            .properties(height=height, background="#FFFFFF")
+        )
+
+    def _int_hist(values, label, color, max_x):
+        df = pd.DataFrame({label: values})
+        return (
+            alt.Chart(df)
+            .mark_bar(color=color)
+            .encode(
+                x=alt.X(f"{label}:Q", bin=alt.Bin(step=1, extent=[0, max_x]), title=label),
+                y=alt.Y("count():Q", title="Sentence pairs"),
+            )
+            .configure_view(strokeWidth=0)
+            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
+            .properties(height=260, background="#FFFFFF")
+        )
+
     def _hist(values, label, color, max_x=None):
         df = pd.DataFrame({label: values})
         x_enc = alt.X(f"{label}:Q", bin=alt.Bin(maxbins=40), title=label)
@@ -634,6 +699,353 @@ with tab_eda:
 
     if not (en_words or top_en or split_comp):
         st.info("No EDA results available.")
+
+    if en_chars and or_chars:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Sentence length in characters</div>', unsafe_allow_html=True)
+        col7, col8 = st.columns(2)
+        with col7:
+            st.altair_chart(_hist(en_chars, "English character count", TEAL), use_container_width=True)
+        with col8:
+            st.altair_chart(_hist(or_chars, "Odia character count", AMBER), use_container_width=True)
+
+        import statistics as _stats
+        en_c_mean, or_c_mean = _stats.mean(en_chars), _stats.mean(or_chars)
+        _longer_chars = "Odia" if or_c_mean > en_c_mean else "English"
+        _char_ratio = max(or_c_mean, en_c_mean) / min(or_c_mean, en_c_mean)
+        st.markdown(
+            f"""
+            <div class="card-note">
+                English sentences average {en_c_mean:.1f} characters (median {_stats.median(en_chars):.0f}),
+                against {or_c_mean:.1f} characters (median {_stats.median(or_chars):.0f}) for the matching
+                Odia sentences -- {_longer_chars} runs about {_char_ratio:.2f}&times; longer in raw character
+                count for the same content. Odia's Brahmic script represents syllables with a base consonant
+                plus combining vowel signs and, for consonant clusters, additional conjunct glyphs, which
+                tends to inflate character counts relative to a Latin alphabet even when word counts (see
+                above) do not move the same way.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if en_awl and or_awl:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Average word length (characters)</div>', unsafe_allow_html=True)
+        col9, col10 = st.columns(2)
+        with col9:
+            st.altair_chart(_hist(en_awl, "English avg word length", TEAL), use_container_width=True)
+        with col10:
+            st.altair_chart(_hist(or_awl, "Odia avg word length", AMBER), use_container_width=True)
+
+        import statistics as _stats
+        en_awl_mean, or_awl_mean = _stats.mean(en_awl), _stats.mean(or_awl)
+        _longer_words = "Odia" if or_awl_mean > en_awl_mean else "English"
+        _awl_diff_pct = abs(or_awl_mean - en_awl_mean) / min(en_awl_mean, or_awl_mean) * 100
+        st.markdown(
+            f"""
+            <div class="card-note">
+                The average English word in this corpus is {en_awl_mean:.2f} characters long, versus
+                {or_awl_mean:.2f} for Odia -- {_longer_words} words run about {_awl_diff_pct:.0f}% longer
+                per word on average. Read together with the character-count and word-count charts above,
+                this is where the character-level difference between the two languages actually originates:
+                a shift in per-word length rather than in how many words a sentence contains, consistent
+                with case markers and postpositions being fused onto word stems in Odia rather than left as
+                separate tokens.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if en_unk or or_unk or en_unk_rate is not None or or_unk_rate is not None:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Tokenizer coverage (UNK rate)</div>', unsafe_allow_html=True)
+
+        if en_unk and or_unk:
+            max_unk = max(max(en_unk), max(or_unk), 1)
+            col11, col12 = st.columns(2)
+            with col11:
+                st.altair_chart(_int_hist(en_unk, "English UNK tokens per sentence", TEAL, max_unk), use_container_width=True)
+            with col12:
+                st.altair_chart(_int_hist(or_unk, "Odia UNK tokens per sentence", AMBER, max_unk), use_container_width=True)
+
+        mcol1, mcol2 = st.columns(2)
+        with mcol1:
+            with st.container(border=True):
+                st.metric("English UNK rate", f"{en_unk_rate:.3f}%" if isinstance(en_unk_rate, (int, float)) else "n/a")
+        with mcol2:
+            with st.container(border=True):
+                st.metric("Odia UNK rate", f"{or_unk_rate:.3f}%" if isinstance(or_unk_rate, (int, float)) else "n/a")
+
+        _rate_desc = []
+        if isinstance(en_unk_rate, (int, float)):
+            _rate_desc.append(f"English at {en_unk_rate:.3f}%")
+        if isinstance(or_unk_rate, (int, float)):
+            _rate_desc.append(f"Odia at {or_unk_rate:.3f}%")
+        _rate_text = " and ".join(_rate_desc) if _rate_desc else "not yet computed"
+        st.markdown(
+            f"""
+            <div class="card-note">
+                Overall &lt;UNK&gt; coverage sits at {_rate_text} of tokens. A low UNK rate (well under 1%)
+                means the BPE tokenizer's learned merge table already covers almost every character and
+                subword pattern actually occurring in this corpus, so the model rarely has to fall back to
+                an uninformative unknown-token placeholder during training or inference. A meaningfully
+                higher UNK rate would instead point to vocabulary size being too small for the script's
+                character inventory, or to the tokenizer having been trained on a different data
+                distribution than it is now being applied to -- worth checking against the vocab sizes
+                reported in the Architecture tab if this number ever climbs.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if split_comp:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Split composition (proportions)</div>', unsafe_allow_html=True)
+        preferred = ["train", "val", "test"]
+        ordered_split = {k: split_comp[k] for k in preferred if k in split_comp}
+        ordered_split.update({k: v for k, v in split_comp.items() if k not in ordered_split})
+        st.altair_chart(_pie(ordered_split, colors=[TEAL, AMBER, CRITICAL], sort_desc=False), use_container_width=True)
+        _split_total = sum(split_comp.values()) or 1
+        _split_breakdown = ", ".join(f"{k} {v / _split_total * 100:.1f}%" for k, v in ordered_split.items())
+        st.markdown(
+            f"""
+            <div class="card-note">
+                The {fmt_num(g(DATA_STATS, 'total_size'))} sampled pairs split as {_split_breakdown} -- a
+                standard train-dominant split that leaves enough held-out data in validation and test to
+                get a stable loss curve and a meaningful BLEU estimate without sacrificing training signal.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if en_end_punct or or_end_punct:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Sentence-ending punctuation</div>', unsafe_allow_html=True)
+        col13, col14 = st.columns(2)
+        with col13:
+            st.caption("English")
+            if en_end_punct:
+                st.altair_chart(_pie(en_end_punct, colors=EDA_PALETTE_5), use_container_width=True)
+        with col14:
+            st.caption("Odia")
+            if or_end_punct:
+                st.altair_chart(_pie(or_end_punct, colors=EDA_PALETTE_5), use_container_width=True)
+
+        _en_top_punct = max(en_end_punct, key=en_end_punct.get) if en_end_punct else None
+        _or_top_punct = max(or_end_punct, key=or_end_punct.get) if or_end_punct else None
+        _punct_bits = []
+        if _en_top_punct:
+            _punct_bits.append(f"English sentences most commonly end in '{_en_top_punct}'.")
+        if _or_top_punct:
+            _punct_bits.append(f"Odia sentences most commonly end in '{_or_top_punct}', the Odia sentence-final danda where the corpus retains native punctuation rather than a Latin period.")
+        st.markdown(
+            f"""
+            <div class="card-note">
+                {' '.join(_punct_bits)}
+                A high share of "other" endings in either language usually indicates truncated, list-like,
+                or otherwise noisy source sentences that survived cleaning without a terminal mark, which is
+                useful context when interpreting outliers in the length distributions above.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if isinstance(en_pct_digits, (int, float)):
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Sentences containing digits (English)</div>', unsafe_allow_html=True)
+        digit_counts = {"Contains a digit": en_pct_digits, "No digit": max(0.0, 100.0 - en_pct_digits)}
+        st.altair_chart(_pie(digit_counts, colors=[AMBER, TEAL], sort_desc=False), use_container_width=True)
+        st.markdown(
+            f"""
+            <div class="card-note">
+                {en_pct_digits:.1f}% of English sentences in the corpus contain at least one digit
+                (dates, statistics, monetary or case-reference figures typical of the news-derived
+                Samanantar source material). Digits are a useful tokenizer stress test: numeric strings
+                tend to be rare and highly variable, so they are disproportionately likely to fragment
+                into many short subword pieces or to trigger UNK fallbacks if the vocabulary under-covers
+                them.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if en_words and or_words and length_corr:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">English vs Odia sentence length (word count)</div>', unsafe_allow_html=True)
+        scatter_df = pd.DataFrame({"English words": en_words, "Odia words": or_words})
+        scatter_chart = (
+            alt.Chart(scatter_df)
+            .mark_circle(size=16, opacity=0.18, color=TEAL)
+            .encode(
+                x=alt.X("English words:Q", title="English word count"),
+                y=alt.Y("Odia words:Q", title="Odia word count"),
+                tooltip=[alt.Tooltip("English words:Q"), alt.Tooltip("Odia words:Q")],
+            )
+            .configure_view(strokeWidth=0)
+            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
+            .properties(height=380, background="#FFFFFF")
+        )
+        st.altair_chart(scatter_chart, use_container_width=True)
+
+        r_words = length_corr.get("pearson_r_words")
+        r_subwords = length_corr.get("pearson_r_subwords")
+        if isinstance(r_words, (int, float)) and isinstance(r_subwords, (int, float)):
+            _r_desc = "strong" if r_words >= 0.7 else "moderate" if r_words >= 0.4 else "weak"
+            st.markdown(
+                f"""
+                <div class="card-note">
+                    Pearson correlation between English and Odia sentence length is
+                    r = {r_words:.3f} in words and r = {r_subwords:.3f} in subword tokens, a {_r_desc}
+                    positive relationship. This is exactly the shape a genuinely parallel, consistently
+                    translated corpus should have: longer source sentences produce longer target
+                    sentences and vice versa, rather than target length being decoupled from source
+                    length. A weak or near-zero correlation here would instead be a red flag for
+                    misaligned pairs, machine-generated filler, or truncated sentences slipping through
+                    the cleaning pipeline.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    if cleaning_funnel:
+        _funnel_pool = cleaning_funnel.get("candidate_pool_after_cleaning")
+        _funnel_survived = cleaning_funnel.get("survived_max_len_filter")
+        _funnel_final = cleaning_funnel.get("final_sampled")
+        if all(isinstance(v, (int, float)) for v in (_funnel_pool, _funnel_survived, _funnel_final)):
+            st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Data cleaning funnel</div>', unsafe_allow_html=True)
+            stages = ["Candidate pool after cleaning", "Survived MAX_LEN filter", "Final sampled"]
+            funnel_df = pd.DataFrame({"stage": stages, "count": [_funnel_pool, _funnel_survived, _funnel_final]})
+            funnel_chart = (
+                alt.Chart(funnel_df)
+                .mark_bar(color=TEAL, size=70, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+                .encode(
+                    x=alt.X("stage:N", sort=stages, title=None, axis=alt.Axis(labelAngle=0)),
+                    y=alt.Y("count:Q", title="Sentence pairs"),
+                    tooltip=[alt.Tooltip("stage:N", title="Stage"), alt.Tooltip("count:Q", title="Pairs", format=",")],
+                )
+                .configure_view(strokeWidth=0)
+                .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
+                .properties(height=300, background="#FFFFFF")
+            )
+            st.altair_chart(funnel_chart, use_container_width=True)
+
+            _lost_len_filter = _funnel_pool - _funnel_survived
+            _lost_len_pct = (_lost_len_filter / _funnel_pool * 100) if _funnel_pool else 0.0
+            _kept_final_pct = (_funnel_final / _funnel_survived * 100) if _funnel_survived else 0.0
+            st.markdown(
+                f"""
+                <div class="card-note">
+                    Of the {fmt_num(_funnel_pool)} candidate pairs remaining after text cleaning,
+                    {fmt_num(_lost_len_filter)} ({_lost_len_pct:.1f}%) are dropped by the
+                    <code>MAX_LEN</code> subword-length filter, leaving {fmt_num(_funnel_survived)}
+                    pairs, of which {fmt_num(_funnel_final)} ({_kept_final_pct:.1f}% of survivors) are
+                    kept in the final sampled dataset. As the subword length-ratio analysis above shows,
+                    Odia sequences run several times longer than English at the same content, so a single
+                    shared <code>MAX_LEN</code> budget disproportionately filters out pairs where the Odia
+                    side is too long rather than the English side -- the funnel here is effectively an
+                    Odia-length filter wearing an English-length filter's name.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    if descriptive_stats:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Descriptive statistics</div>', unsafe_allow_html=True)
+        _row_labels = {
+            "en_words": "English words",
+            "or_words": "Odia words",
+            "en_subwords": "English subwords",
+            "or_subwords": "Odia subwords",
+            "subword_ratio": "Subword ratio (Odia / English)",
+            "en_chars": "English characters",
+            "or_chars": "Odia characters",
+        }
+        _col_order = ["mean", "std", "min", "p25", "median", "p75", "p90", "p95", "p99", "max"]
+        _desc_rows = {
+            label: {col: descriptive_stats[key].get(col) for col in _col_order}
+            for key, label in _row_labels.items()
+            if key in descriptive_stats
+        }
+        if _desc_rows:
+            desc_df = pd.DataFrame(_desc_rows).T[_col_order].round(2)
+            st.dataframe(desc_df, use_container_width=True)
+
+            st.markdown(
+                """
+                <div class="card-note">
+                    Percentiles rather than mean/std alone matter here because sentence length is
+                    right-skewed: the gap between the median and the p99/max columns shows how long the
+                    tail of unusually long sentences runs for each measure, which is what actually drives
+                    truncation risk under a fixed <code>MAX_LEN</code> rather than the mean length.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    if vocab_stats:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Vocabulary richness</div>', unsafe_allow_html=True)
+        vocab_df = pd.DataFrame(
+            {
+                "Total words": [vocab_stats.get("en_total_words"), vocab_stats.get("or_total_words")],
+                "Unique words": [vocab_stats.get("en_unique_words"), vocab_stats.get("or_unique_words")],
+                "Type-token ratio": [vocab_stats.get("en_ttr"), vocab_stats.get("or_ttr")],
+            },
+            index=["English", "Odia"],
+        )
+        if pd.api.types.is_numeric_dtype(vocab_df["Type-token ratio"]):
+            vocab_df["Type-token ratio"] = vocab_df["Type-token ratio"].round(4)
+        st.dataframe(vocab_df, use_container_width=True)
+
+        en_ttr = vocab_stats.get("en_ttr")
+        or_ttr = vocab_stats.get("or_ttr")
+        if isinstance(en_ttr, (int, float)) and isinstance(or_ttr, (int, float)):
+            _higher_lang = "Odia" if or_ttr > en_ttr else "English"
+            if _higher_lang == "Odia":
+                _morph_note = (
+                    "Odia is agglutinative and inflects nouns and verbs for case, number, and honorific "
+                    "register by adding suffixes to a shared stem, so the same underlying vocabulary "
+                    "surfaces as many more distinct word forms -- exactly what a higher type-token ratio "
+                    "measures."
+                )
+            else:
+                _morph_note = (
+                    "even though Odia's morphology is more inflected than English's, the raw word-form "
+                    "count here comes out lower relative to English, which given the corpus size is more "
+                    "consistent with a smaller effective vocabulary in this particular sample than with "
+                    "morphology alone."
+                )
+            st.markdown(
+                f"""
+                <div class="card-note">
+                    Type-token ratio (unique words / total words) is {en_ttr:.4f} for English and
+                    {or_ttr:.4f} for Odia -- {_higher_lang} shows the higher lexical diversity of the two
+                    on this corpus. {_morph_note}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    if top_en_full and top_or_full:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Top 30 words, full detail</div>', unsafe_allow_html=True)
+        col15, col16 = st.columns(2)
+        with col15:
+            st.caption("English (common stopwords removed)")
+            en_full_df = pd.DataFrame(top_en_full, columns=["word", "count", "percentage"])
+            en_full_df["percentage"] = en_full_df["percentage"].round(2)
+            st.dataframe(en_full_df, use_container_width=True, hide_index=True)
+        with col16:
+            st.caption("Odia")
+            or_full_df = pd.DataFrame(top_or_full, columns=["word", "count", "percentage"])
+            or_full_df["percentage"] = or_full_df["percentage"].round(2)
+            st.dataframe(or_full_df, use_container_width=True, hide_index=True)
+
+        st.markdown(
+            f"""
+            <div class="card-note">
+                Extending the ranking from the top 20 shown in the charts above to the top 30 words in
+                each language: the English list is topped by "{top_en_full[0][0]}" at
+                {top_en_full[0][2]:.2f}% of all (non-stopword) word occurrences, and the Odia list by
+                "{top_or_full[0][0]}" at {top_or_full[0][2]:.2f}%. A steep drop-off from rank 1 to rank
+                30 is the expected Zipfian pattern for natural-language word frequency; a flat,
+                near-uniform distribution across the top 30 instead would be a sign of a corpus dominated
+                by boilerplate or templated sentences rather than natural text variety.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 with tab_training:
     st.markdown('<div class="section-heading">Loss curves</div>', unsafe_allow_html=True)
