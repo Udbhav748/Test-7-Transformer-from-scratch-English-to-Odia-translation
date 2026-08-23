@@ -76,6 +76,8 @@ TOKENIZER_STATS = {
 
 TRAINING_HISTORY = _load_json(REPORTS_DIR / "training_history.json")
 
+EDA_RESULTS = _load_json(REPORTS_DIR / "eda_results.json")
+
 EVAL_RESULTS = _load_json(REPORTS_DIR / "eval_results.json")
 _samples = EVAL_RESULTS.get("samples", [])
 EVAL_RESULTS["long_sentence_index"] = max(

@@ -21,12 +21,13 @@ try:
         TOKENIZER_STATS,
         TRAINING_HISTORY,
         EVAL_RESULTS,
+        EDA_RESULTS,
     )
 
     DATA_LOAD_ERROR = None
 except Exception as exc:  # project_data.py not present or not importable yet
     HYPERPARAMS, DATA_STATS, TOKENIZER_STATS = {}, {}, {}
-    TRAINING_HISTORY, EVAL_RESULTS = [], {}
+    TRAINING_HISTORY, EVAL_RESULTS, EDA_RESULTS = [], {}, {}
     DATA_LOAD_ERROR = str(exc)
 
 TEAL = "#0D9488"
@@ -260,8 +261,22 @@ if DATA_LOAD_ERROR:
     )
     st.stop()
 
-tab_overview, tab_arch, tab_data, tab_training, tab_results = st.tabs(
-    ["Overview", "Architecture", "Data and Tokenization", "Training", "Results"]
+@st.cache_resource(show_spinner=False)
+def load_translation_model():
+    from configs.base import CHECKPOINT_DIR
+    from src.training.train import build_model
+    from src.training.checkpoint import load_checkpoint
+    from src.tokenization.tokenizer_utils import load_tokenizer
+    from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH
+
+    model = build_model()
+    load_checkpoint(CHECKPOINT_DIR / "kaggle_run_best.pt", model)
+    model.eval()
+    return model, load_tokenizer(EN_TOKENIZER_PATH), load_tokenizer(OR_TOKENIZER_PATH)
+
+
+tab_overview, tab_arch, tab_data, tab_eda, tab_training, tab_results, tab_translate = st.tabs(
+    ["Overview", "Architecture", "Data and Tokenization", "EDA", "Training", "Results", "Translate"]
 )
 
 with tab_overview:
@@ -446,6 +461,180 @@ with tab_data:
         unsafe_allow_html=True,
     )
 
+with tab_eda:
+    st.markdown('<div class="section-heading">Exploratory data analysis</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="card-note">
+            Computed directly on the full 40,000-pair processed dataset (train, validation,
+            and test splits combined) using the actual production tokenizers, not the small
+            pilot sample used to size <code>MAX_LEN</code> earlier.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    en_words = EDA_RESULTS.get("en_word_counts", [])
+    or_words = EDA_RESULTS.get("or_word_counts", [])
+    en_subwords = EDA_RESULTS.get("en_subword_counts", [])
+    or_subwords = EDA_RESULTS.get("or_subword_counts", [])
+    ratios = EDA_RESULTS.get("subword_ratio", [])
+    top_en = EDA_RESULTS.get("top_words_en", [])
+    top_or = EDA_RESULTS.get("top_words_or", [])
+    split_comp = EDA_RESULTS.get("split_composition", {})
+
+    def _hist(values, label, color, max_x=None):
+        df = pd.DataFrame({label: values})
+        x_enc = alt.X(f"{label}:Q", bin=alt.Bin(maxbins=40), title=label)
+        if max_x:
+            x_enc = alt.X(f"{label}:Q", bin=alt.Bin(maxbins=40, extent=[0, max_x]), title=label, scale=alt.Scale(domain=[0, max_x]))
+        return (
+            alt.Chart(df)
+            .mark_bar(color=color)
+            .encode(x=x_enc, y=alt.Y("count():Q", title="Sentence pairs"))
+            .configure_view(strokeWidth=0)
+            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
+            .properties(height=260, background="#FFFFFF")
+        )
+
+    if en_words and or_words:
+        st.markdown('<div class="section-heading" style="margin-top:0.4rem;">Sentence length in words</div>', unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.altair_chart(_hist(en_words, "English word count", TEAL, max_x=40), use_container_width=True)
+        with col2:
+            st.altair_chart(_hist(or_words, "Odia word count", AMBER, max_x=40), use_container_width=True)
+
+        import statistics as _stats
+        st.markdown(
+            f"""
+            <div class="card-note">
+                English sentences average {_stats.mean(en_words):.1f} words (median
+                {_stats.median(en_words):.0f}), while Odia sentences for the same content average
+                {_stats.mean(or_words):.1f} words (median {_stats.median(or_words):.0f}) -- slightly
+                fewer, not more. This is consistent with Odia's agglutinative morphology: case
+                markers, postpositions, and connective particles that English spells as separate
+                words are frequently fused onto the preceding word in Odia, so the same content is
+                expressed in fewer, denser word units.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if en_subwords and or_subwords:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Sentence length in subword tokens</div>', unsafe_allow_html=True)
+        col3, col4 = st.columns(2)
+        with col3:
+            st.altair_chart(_hist(en_subwords, "English subword count", TEAL, max_x=100), use_container_width=True)
+        with col4:
+            st.altair_chart(_hist(or_subwords, "Odia subword count", AMBER, max_x=100), use_container_width=True)
+
+        import statistics as _stats
+        en_mean, or_mean = _stats.mean(en_subwords), _stats.mean(or_subwords)
+        st.markdown(
+            f"""
+            <div class="card-note">
+                The picture reverses completely once text is broken into the subword units the
+                model actually consumes: English averages {en_mean:.1f} subword tokens per sentence,
+                Odia averages {or_mean:.1f} -- roughly {or_mean / en_mean:.1f} times longer, despite
+                having fewer words. Odia's multi-byte Brahmic script and heavy use of consonant
+                conjuncts and vowel-sign diacritics mean a single word, and even a single visual
+                syllable, routinely decomposes into several subword pieces. This is also why the
+                production tokenizer (trained on the full 58,000-pair candidate pool) produced
+                noticeably shorter Odia sequences than the earlier 8,000-pair pilot tokenizer
+                estimated (mean {or_mean:.1f} here versus 49.8 in the pilot) -- more training text
+                let BPE learn more efficient merges, confirming that pilot measurement was a
+                conservative upper bound rather than the final answer.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if ratios:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Odia-to-English length ratio</div>', unsafe_allow_html=True)
+        st.altair_chart(_hist(ratios, "Odia subwords per English subword", TEAL, max_x=8), use_container_width=True)
+
+        import statistics as _stats
+        st.markdown(
+            f"""
+            <div class="card-note">
+                For a typical sentence pair, Odia needs {_stats.median(ratios):.2f} times as many
+                subword tokens as English to express the same content (median ratio; mean
+                {_stats.mean(ratios):.2f}). This asymmetry is the direct explanation for why a
+                shared <code>MAX_LEN=64</code> budget disproportionately truncates the Odia side of
+                the corpus rather than the English side, and why the pair-retention rate reported in
+                the Data and Tokenization tab is driven almost entirely by Odia sentence length, not
+                English.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if top_en and top_or:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Most frequent words</div>', unsafe_allow_html=True)
+        col5, col6 = st.columns(2)
+
+        def _top_words_chart(pairs, color, font_class=None):
+            df = pd.DataFrame(pairs, columns=["word", "count"])
+            chart = (
+                alt.Chart(df)
+                .mark_bar(color=color)
+                .encode(
+                    x=alt.X("count:Q", title="Occurrences"),
+                    y=alt.Y("word:N", sort="-x", title=None),
+                    tooltip=["word", "count"],
+                )
+                .configure_view(strokeWidth=0)
+                .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
+                .properties(height=380, background="#FFFFFF")
+            )
+            return chart
+
+        with col5:
+            st.caption("English (common stopwords removed)")
+            st.altair_chart(_top_words_chart(top_en, TEAL), use_container_width=True)
+        with col6:
+            st.caption("Odia")
+            st.altair_chart(_top_words_chart(top_or, AMBER), use_container_width=True)
+
+        st.markdown(
+            """
+            <div class="card-note">
+                English's most frequent content words -- "police", "india", "government" among
+                them -- reflect Samanantar's journalistic source material rather than general
+                conversational English. Odia's most frequent words are almost entirely closed-class
+                grammatical particles and pronouns (roughly: this, he/she/they, and, for, also,
+                it, not, after, a, and), essentially unfiltered since no curated Odia stopword list
+                was applied. That the top of the frequency list is dominated by function words
+                either way, in both languages independently, is the expected Zipfian shape of
+                natural-language word frequency, not an artifact of this particular corpus.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if split_comp:
+        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Split composition</div>', unsafe_allow_html=True)
+        split_df = pd.DataFrame(
+            [{"split": k, "count": v} for k, v in split_comp.items()]
+        )
+        split_chart = (
+            alt.Chart(split_df)
+            .mark_bar(color=TEAL, size=45, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+            .encode(
+                x=alt.X("split:N", title=None, sort=["train", "val", "test"]),
+                y=alt.Y("count:Q", title="Sentence pairs"),
+                tooltip=["split", "count"],
+            )
+            .configure_view(strokeWidth=0)
+            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
+            .properties(height=260, background="#FFFFFF")
+        )
+        st.altair_chart(split_chart, use_container_width=True)
+
+    if not (en_words or top_en or split_comp):
+        st.info("No EDA results available.")
+
 with tab_training:
     st.markdown('<div class="section-heading">Loss curves</div>', unsafe_allow_html=True)
 
@@ -546,5 +735,79 @@ with tab_results:
             )
     else:
         st.info("No sample translations available.")
+
+with tab_translate:
+    st.markdown('<div class="section-heading">Translate a sentence</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="card-note">
+            Type an English sentence below and the actual trained checkpoint from
+            this project translates it into Odia using greedy decoding, live.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    try:
+        translate_model, en_tokenizer, or_tokenizer = load_translation_model()
+        model_load_error = None
+    except Exception as exc:
+        translate_model, en_tokenizer, or_tokenizer = None, None, None
+        model_load_error = str(exc)
+
+    if model_load_error:
+        st.warning(f"Translation model could not be loaded: {model_load_error}")
+    else:
+        user_text = st.text_input(
+            "English sentence",
+            value="The weather is very nice today.",
+            key="live_translate_input",
+        )
+        show_beam = st.checkbox("Also show beam search output", value=False)
+
+        if user_text.strip():
+            import torch
+
+            from src.inference.greedy_decode import greedy_decode
+            from src.tokenization.tokenizer_utils import encode as tok_encode, decode as tok_decode
+
+            source_ids = tok_encode(en_tokenizer, user_text)
+            src_tensor = torch.tensor([source_ids])
+
+            with st.spinner("Translating"):
+                greedy_ids = greedy_decode(translate_model, src_tensor)
+            greedy_text = tok_decode(or_tokenizer, greedy_ids)
+
+            st.markdown(
+                f'<div class="card-note odia-text" style="font-size:1.3rem;">{greedy_text}</div>',
+                unsafe_allow_html=True,
+            )
+
+            if show_beam:
+                from src.inference.beam_search import beam_search_decode
+
+                with st.spinner("Running beam search"):
+                    beam_ids = beam_search_decode(translate_model, src_tensor)
+                beam_text = tok_decode(or_tokenizer, beam_ids)
+                st.caption("Beam search (width 4):")
+                st.markdown(f'<div class="odia-text">{beam_text}</div>', unsafe_allow_html=True)
+
+            st.caption(
+                f"Encoded as {len(source_ids)} English subword tokens, including SOS/EOS."
+            )
+        else:
+            st.info("Type a sentence above to see its Odia translation.")
+
+        st.markdown(
+            """
+            <div class="card-note" style="margin-top:1.4rem;">
+                This model is deliberately small and trained on a modest corpus, so
+                translation quality is limited, especially on longer or more complex
+                sentences -- see the Results tab for the measured BLEU score and a
+                worked example of the failure mode.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 st.markdown('<div class="footer-note">English-Odia Transformer &middot; trained from scratch per assignment section 5.6</div>', unsafe_allow_html=True)
