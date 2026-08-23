@@ -150,7 +150,24 @@ from configs.base import (
 )
 from src.training.train import train
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+def select_device():
+    # torch.cuda.is_available() only checks driver presence, not whether the
+    # installed torch build actually has compiled kernels for the assigned
+    # GPU's compute architecture (older cards like the P100 can fail with
+    # "no kernel image is available" on a build that dropped that arch) --
+    # a real matmul probe catches that, is_available() alone would not.
+    if not torch.cuda.is_available():
+        return "cpu"
+    try:
+        probe = torch.randn(8, 8, device="cuda")
+        _ = probe @ probe
+        torch.cuda.synchronize()
+        return "cuda"
+    except Exception as e:
+        print(f"CUDA reported available but unusable ({e}); falling back to CPU")
+        return "cpu"
+
+device = select_device()
 print(f"training on device: {device}")
 
 model, history = train(
