@@ -1,0 +1,15 @@
+{
+  "id": "udbhav748/test-7-en-or-transformer",
+  "title": "Test-7 En-Odia Transformer",
+  "code_file": "en_or_transformer.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "udbhav748/test-7-en-or-processed"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}
