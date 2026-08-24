@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Subset
 
-from configs.base import ADAM_BETAS, ADAM_EPS, GRAD_CLIP_NORM, PAD_ID
+from configs.base import ADAM_BETAS, ADAM_EPS, GRAD_CLIP_NORM, LABEL_SMOOTHING, PAD_ID
 from src.data.dataset import TranslationDataset, collate_fn
 from src.model.transformer import Seq2SeqTransformer
 from src.tokenization.tokenizer_utils import load_tokenizer
@@ -72,7 +72,13 @@ def train(
     # base lr=1.0: the Noam schedule computes the actual lr as a multiplier, applied by LambdaLR
     optimizer = torch.optim.Adam(model.parameters(), lr=1.0, betas=ADAM_BETAS, eps=ADAM_EPS)
     scheduler = build_noam_scheduler(optimizer)
-    loss_fn = nn.CrossEntropyLoss(ignore_index=PAD_ID)
+    # Label smoothing softens the training target distribution instead of
+    # demanding a hard one-hot prediction, which tends to reduce the kind of
+    # overconfident repetition loops greedy decoding is prone to on a small
+    # model; it also means this loss is not numerically comparable to a
+    # run trained without smoothing -- lower is still better, but the floor
+    # is different.
+    loss_fn = nn.CrossEntropyLoss(ignore_index=PAD_ID, label_smoothing=LABEL_SMOOTHING)
 
     best_val_loss = float("inf")
     history = []

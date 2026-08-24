@@ -53,12 +53,16 @@ TIE_OUTPUT_PROJECTION = False  # assignment specifies "linear+softmax"; tying is
 # --- Training ---
 BATCH_SIZE_KAGGLE = 128
 BATCH_SIZE_LOCAL_SMOKE = 8
-NUM_EPOCHS_KAGGLE = 18
+# Bumped from 18: the first real run's val loss was still decreasing every
+# epoch with no sign of plateauing (1.9257 at epoch 18), so more epochs on
+# the same d=128/heads=4/N=2 architecture is real headroom, not just noise.
+NUM_EPOCHS_KAGGLE = 40
 NUM_EPOCHS_LOCAL_SMOKE = 3
 ADAM_BETAS = (0.9, 0.98)
 ADAM_EPS = 1e-9
 WARMUP_STEPS = 900
 GRAD_CLIP_NORM = 1.0
+LABEL_SMOOTHING = 0.1
 
 # --- Inference ---
 GREEDY_MAX_DECODE_LEN = MAX_LEN
