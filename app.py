@@ -275,8 +275,8 @@ def load_translation_model():
     return model, load_tokenizer(EN_TOKENIZER_PATH), load_tokenizer(OR_TOKENIZER_PATH)
 
 
-tab_overview, tab_arch, tab_data, tab_eda, tab_training, tab_results, tab_translate = st.tabs(
-    ["Overview", "Architecture", "Data and Tokenization", "EDA", "Training", "Results", "Translate"]
+tab_overview, tab_techniques, tab_arch, tab_data, tab_eda, tab_training, tab_results, tab_translate = st.tabs(
+    ["Overview", "NLP Techniques", "Architecture", "Data and Tokenization", "EDA", "Training", "Results", "Translate"]
 )
 
 with tab_overview:
@@ -321,6 +321,88 @@ with tab_overview:
         """,
         unsafe_allow_html=True,
     )
+
+with tab_techniques:
+    st.markdown('<div class="section-heading">NLP techniques used in this project</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="card-note">
+            Every technique below is actually implemented in this project's code, not a generic
+            checklist -- each row states what the technique does and specifically how and why it is
+            used here, grounded in the real configuration and measurements reported elsewhere in
+            this dashboard.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    def technique_table(rows):
+        html = ["<table class='result-table'><thead><tr><th>Technique</th><th>What it does</th><th>How it is used in this project</th></tr></thead><tbody>"]
+        for name, what, how in rows:
+            html.append(f"<tr><td><strong>{name}</strong></td><td>{what}</td><td>{how}</td></tr>")
+        html.append("</tbody></table>")
+        st.markdown("".join(html), unsafe_allow_html=True)
+
+    st.markdown('<div class="section-heading" style="margin-top:0.4rem;font-size:1.1rem;">1. Text preprocessing and normalization</div>', unsafe_allow_html=True)
+    technique_table([
+        ("Unicode NFC normalization", "Canonicalizes text so visually identical characters that could be encoded as different Unicode byte sequences become one consistent representation.", "Applied to both languages before any tokenization. Critical for Odia, where consonant conjuncts and vowel-sign sequences can have multiple equivalent encodings -- without this step the same visible character could silently split the BPE vocabulary in two."),
+        ("Zero-width character handling", "Selectively removes zero-width characters that carry no linguistic meaning while preserving ones that do.", "ZWJ (U+200D) and ZWNJ (U+200C) control conjunct formation in Indic scripts and are preserved except at string edges or in runs of 2+ (a scraping artifact, collapsed to one). Truly meaningless ZWSP (U+200B) and BOM (U+FEFF) are always stripped."),
+        ("Whitespace normalization", "Collapses irregular whitespace runs into single spaces.", "Applied to both languages after zero-width cleanup, before the word-count filter."),
+        ("Length filtering", "Removes sentences that are too short (likely noise) or too long (likely misaligned/multi-sentence scraping errors).", "A 3-60 word filter runs first as a cheap pass, followed by a stricter subword-length filter (see Data tab) once tokenizers are trained."),
+        ("Deduplication", "Ensures no sentence appears more than once, and specifically not across more than one data split.", "Exact-duplicate English source sentences are removed before the train/validation/test split, preventing train-test leakage."),
+    ])
+
+    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">2. Tokenization</div>', unsafe_allow_html=True)
+    technique_table([
+        ("Byte-Pair Encoding (BPE)", "Learns a fixed-size vocabulary of frequently occurring subword units by iteratively merging the most common adjacent symbol pairs, letting rare/unseen words be represented as combinations of known pieces.", "Two independent 8,000-token BPE vocabularies are trained (English, Odia) via the HuggingFace tokenizers library, on the cleaned candidate pool."),
+        ("Byte-level pre-tokenization", "Operates on raw UTF-8 bytes rather than characters, so every possible input string is representable without any truly out-of-vocabulary input.", "This is exactly why the measured out-of-vocabulary rate on this dataset is 0.0% for both languages (EDA tab) -- a structural guarantee of the tokenization scheme, not a lucky coincidence of the corpus."),
+        ("Separate per-language vocabularies", "Trains an independent subword vocabulary for each language instead of one shared vocabulary.", "English and Odia share almost no Unicode code points, so a shared vocabulary would waste capacity; each language gets the full 8,000-token budget spent entirely on its own script."),
+        ("Special token scheme", "Reserves fixed vocabulary ids for structural tokens the model needs beyond real words.", "&lt;PAD&gt;=0, &lt;SOS&gt;=1, &lt;EOS&gt;=2, &lt;UNK&gt;=3, identical ids in both tokenizers, automatically wrapped onto every sequence via a TemplateProcessing post-processor."),
+    ])
+
+    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">3. Transformer architecture</div>', unsafe_allow_html=True)
+    technique_table([
+        ("Scaled token embeddings", "Converts discrete token ids into continuous vectors, scaled by the square root of the model dimension.", "Each embedding lookup is multiplied by sqrt(128) before positional information is added, keeping embedding and positional-encoding magnitudes comparable, per the original Transformer paper."),
+        ("Sinusoidal positional encoding", "Injects sequence-order information using fixed sine and cosine functions at different frequencies across the embedding dimensions, since attention itself has no built-in notion of order.", "A precomputed sin/cos table is added to every token embedding before it enters the encoder or decoder stack."),
+        ("Multi-head self-attention", "Lets every position attend to every other position in the same sequence, split across several parallel attention heads that can specialize in different relationships.", "4 attention heads of 32 dimensions each, used for both encoder self-attention and (in masked form) decoder self-attention."),
+        ("Masked (causal) self-attention", "Restricts each decoder position to attending only to itself and earlier positions, never future ones, which is what makes autoregressive generation valid.", "Enforced via a lower-triangular mask combined with the padding mask; verified directly by a dedicated automated test rather than only inferred from the loss curve (see Training tab)."),
+        ("Cross-attention", "Lets the decoder attend over the full encoder output, which is how information from the source sentence reaches the target-language generation process.", "Each of the 2 decoder blocks has a cross-attention sub-layer between its masked self-attention and its feed-forward sub-layer."),
+        ("Position-wise feed-forward network", "A two-layer fully connected network applied independently and identically at every sequence position, adding representational capacity beyond attention alone.", "128 -> 512 -> 128 with a ReLU activation, present in every encoder and decoder block."),
+        ("Residual connections + layer normalization", "Adds each sub-layer's input back to its output and normalizes the result, which is what makes a multi-block network trainable by keeping gradients well-behaved.", "Applied after every sub-layer (self-attention, cross-attention, feed-forward) in post-norm order: residual add, dropout, then LayerNorm."),
+        ("Padding masks", "Prevents attention from being influenced by &lt;PAD&gt; positions that exist only to let variable-length sentences share a batch.", "Applied in encoder self-attention, decoder self-attention, and cross-attention wherever padding could otherwise leak into a real prediction."),
+        ("Dropout regularization", "Randomly zeroes a fraction of activations during training to reduce overfitting.", "Rate 0.1, applied after attention and feed-forward sub-layers and on the positional encoding output -- meaningful on a comparatively small 36,000-pair training set."),
+        ("Weight-tying (implemented, disabled by default)", "An optional technique where the output projection shares its weight matrix with the target-side embedding table, reducing parameter count.", "Implemented as a constructor flag but left off by default, since the assignment specifies a plain linear-plus-softmax output head rather than this additional technique."),
+    ])
+
+    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">4. Training methodology</div>', unsafe_allow_html=True)
+    technique_table([
+        ("Teacher forcing", "Feeds the true previous target token as decoder input at every training step, instead of the model's own (possibly wrong) prediction.", "Standard for sequence-to-sequence training here -- the target sequence is shifted by one position to build decoder-input/decoder-target pairs."),
+        ("Cross-entropy loss with padding ignored", "Measures how well predicted next-token probabilities match the true next token, while explicitly excluding positions that only exist for batch padding.", "PyTorch's CrossEntropyLoss with ignore_index set to the &lt;PAD&gt; id, so padding never contributes to the loss or its gradients."),
+        ("Adam optimizer (Transformer-tuned)", "A gradient-based optimizer that adapts its per-parameter step size using running estimates of gradient mean and variance.", "Uses betas=(0.9, 0.98) and eps=1e-9, matching the original Transformer paper's settings rather than PyTorch's defaults."),
+        ("Learning-rate warmup (Noam schedule)", "Ramps the learning rate up linearly for an initial number of steps, then decays it proportional to the inverse square root of the step count.", "900 warmup steps; prevents large, destabilizing parameter updates before the attention layers have started to form sensible patterns."),
+        ("Gradient clipping", "Caps the overall gradient norm at every step to prevent occasional large gradients from destabilizing training.", "Clipped to a maximum norm of 1.0 on every optimizer step."),
+        ("Best-checkpoint selection", "Retains the model state from whichever epoch had the lowest validation loss, rather than simply the last epoch.", "Validation loss decreased every single epoch across all 18 epochs of the real training run, so the best and last checkpoints ended up identical -- itself a sign of healthy, non-overfitting training within the epoch budget used."),
+    ])
+
+    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">5. Decoding strategies</div>', unsafe_allow_html=True)
+    technique_table([
+        ("Greedy decoding", "Generates one token at a time by always picking the single highest-probability next token and feeding it back in, until an end-of-sequence token or a length limit is reached.", "The required decoding strategy for this assignment; used for every translation shown on the Results and Translate tabs by default."),
+        ("Beam search decoding", "Maintains several candidate partial translations simultaneously (a beam), scored by length-normalized cumulative log-probability, exploring more of the output space than greedy decoding.", "Implemented as the assignment's optional bonus item, kept in an isolated module so it cannot affect the required greedy path; available live via the checkbox on the Translate tab."),
+    ])
+
+    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">6. Evaluation methodology</div>', unsafe_allow_html=True)
+    technique_table([
+        ("BLEU score", "An automated n-gram precision metric that compares machine output against human reference translations, the standard metric for machine translation quality.", "Computed via sacrebleu over the full 2,000-sentence held-out test set, with identical postprocessing (strip special tokens, decode, normalize whitespace) applied to hypotheses and references so the score reflects translation quality, not formatting artifacts."),
+        ("Held-out test evaluation", "Reserves a portion of the data that is never used for training or model selection, so its score is an unbiased estimate of generalization.", "The 2,000-sentence test split is distinct from both the 36,000-sentence training split and the 2,000-sentence validation split used for checkpoint selection."),
+        ("Causal-mask leakage testing", "An automated test that proves a decoder cannot be attending to future tokens, rather than only inferring correctness from an unusually good loss curve.", "The decoder is run twice on identical tokens up to a cut position and different tokens after it; the outputs before the cut are asserted bit-for-bit identical. The assignment explicitly warns that a suspiciously perfect loss curve is a symptom of exactly this bug."),
+    ])
+
+    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">7. Corpus and linguistic analysis (EDA tab)</div>', unsafe_allow_html=True)
+    technique_table([
+        ("Type-token ratio (TTR)", "The ratio of unique words to total word occurrences, a standard measure of lexical diversity.", "Computed independently for English and Odia to compare how repetitive versus varied each language's vocabulary usage is across the corpus."),
+        ("Pearson correlation", "A statistical measure of how linearly two variables move together.", "Used to check whether English sentence length predicts Odia sentence length, as a sanity check that the parallel corpus is genuinely aligned rather than noisy."),
+        ("Zipfian frequency analysis", "Examines whether word frequency follows the expected natural-language pattern of a small number of words accounting for a large share of occurrences.", "Used as a corpus sanity check on the top-word frequency tables, not as a modeling technique."),
+    ])
 
 with tab_arch:
     st.markdown('<div class="section-heading">Model configuration</div>', unsafe_allow_html=True)
