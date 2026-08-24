@@ -83,3 +83,7 @@ _samples = EVAL_RESULTS.get("samples", [])
 EVAL_RESULTS["long_sentence_index"] = max(
     range(len(_samples)), key=lambda i: len(_samples[i]["source"])
 ) if _samples else None
+
+ATTENTION_EXAMPLES = _load_json(REPORTS_DIR / "attention_examples.json")
+
+LENGTH_QUALITY_RESULTS = _load_json(REPORTS_DIR / "length_quality_analysis.json")

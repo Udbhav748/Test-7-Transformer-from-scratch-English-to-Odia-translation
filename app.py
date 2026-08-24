@@ -22,12 +22,15 @@ try:
         TRAINING_HISTORY,
         EVAL_RESULTS,
         EDA_RESULTS,
+        ATTENTION_EXAMPLES,
+        LENGTH_QUALITY_RESULTS,
     )
 
     DATA_LOAD_ERROR = None
 except Exception as exc:  # project_data.py not present or not importable yet
     HYPERPARAMS, DATA_STATS, TOKENIZER_STATS = {}, {}, {}
     TRAINING_HISTORY, EVAL_RESULTS, EDA_RESULTS = [], {}, {}
+    ATTENTION_EXAMPLES, LENGTH_QUALITY_RESULTS = [], {}
     DATA_LOAD_ERROR = str(exc)
 
 TEAL = "#0D9488"
@@ -1230,6 +1233,90 @@ with tab_results:
     else:
         st.info("No sample translations available.")
 
+    if LENGTH_QUALITY_RESULTS:
+        st.markdown('<div class="section-heading" style="margin-top:1.6rem;">Does quality actually degrade with length?</div>', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="card-note">
+                The single long-sentence example above is anecdotal. To check whether it reflects a
+                real pattern, every one of the 2,000 test-set sentences was decoded and scored with
+                per-sentence BLEU, then grouped by source sentence length.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        lq_overall_bleu = LENGTH_QUALITY_RESULTS.get("overall_mean_sentence_bleu")
+        lq_rep_rate = LENGTH_QUALITY_RESULTS.get("overall_repetition_rate_pct")
+        r_word = LENGTH_QUALITY_RESULTS.get("pearson_r_wordlen_bleu")
+        r_subword = LENGTH_QUALITY_RESULTS.get("pearson_r_subwordlen_bleu")
+
+        lq1, lq2, lq3 = st.columns(3)
+        with lq1:
+            with st.container(border=True):
+                st.metric("Mean per-sentence BLEU", f"{lq_overall_bleu:.2f}" if isinstance(lq_overall_bleu, (int, float)) else "n/a")
+        with lq2:
+            with st.container(border=True):
+                st.metric("Repetition rate (full test set)", f"{lq_rep_rate:.1f}%" if isinstance(lq_rep_rate, (int, float)) else "n/a")
+        with lq3:
+            with st.container(border=True):
+                st.metric("Correlation: length vs. BLEU", f"{r_word:.2f}" if isinstance(r_word, (int, float)) else "n/a")
+
+        buckets = LENGTH_QUALITY_RESULTS.get("buckets_by_word_len", [])
+        if buckets:
+            bucket_df = pd.DataFrame(buckets)
+            bleu_bar = (
+                alt.Chart(bucket_df)
+                .mark_bar(color=TEAL, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+                .encode(
+                    x=alt.X("bucket:N", sort=[b["bucket"] for b in buckets], title="Source length (words)"),
+                    y=alt.Y("mean_bleu:Q", title="Mean per-sentence BLEU"),
+                    tooltip=["bucket", "count", "mean_bleu"],
+                )
+                .configure_view(strokeWidth=0)
+                .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
+                .properties(height=280, background="#FFFFFF", title="Mean BLEU by source sentence length")
+            )
+            rep_bar = (
+                alt.Chart(bucket_df)
+                .mark_bar(color=CRITICAL, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+                .encode(
+                    x=alt.X("bucket:N", sort=[b["bucket"] for b in buckets], title="Source length (words)"),
+                    y=alt.Y("repetition_rate_pct:Q", title="Repetition rate (%)"),
+                    tooltip=["bucket", "count", "repetition_rate_pct"],
+                )
+                .configure_view(strokeWidth=0)
+                .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
+                .properties(height=280, background="#FFFFFF", title="Degenerate-repetition rate by source sentence length")
+            )
+            lqc1, lqc2 = st.columns(2)
+            with lqc1:
+                st.altair_chart(bleu_bar, use_container_width=True)
+            with lqc2:
+                st.altair_chart(rep_bar, use_container_width=True)
+
+        shortest = buckets[0] if buckets else {}
+        longest = buckets[-1] if buckets else {}
+        st.markdown(
+            f"""
+            <div class="card-note">
+                The pattern holds across all 2,000 test sentences, not just the one example above:
+                mean BLEU falls from {shortest.get('mean_bleu', 'n/a')} on the shortest sentences
+                ({shortest.get('bucket', 'n/a')} words) to {longest.get('mean_bleu', 'n/a')} on the
+                longest ({longest.get('bucket', 'n/a')} words), while the degenerate-repetition rate
+                climbs from {shortest.get('repetition_rate_pct', 'n/a')}% to
+                {longest.get('repetition_rate_pct', 'n/a')}% over the same range. The length-BLEU
+                correlation itself is only moderate (r = {r_word if r_word is not None else 'n/a'}
+                for word length, {r_subword if r_subword is not None else 'n/a'} for subword length)
+                because the relationship is not linear -- most of the degradation happens by
+                roughly 12-15 words, after which quality is already poor. The repetition-rate trend
+                is the sharper signal: it points at degenerate repetition specifically, not just
+                generic quality loss, as the dominant failure mode on longer sentences.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
 with tab_translate:
     st.markdown('<div class="section-heading">Translate a sentence</div>', unsafe_allow_html=True)
     st.markdown(
@@ -1258,6 +1345,7 @@ with tab_translate:
             key="live_translate_input",
         )
         show_beam = st.checkbox("Also show beam search output", value=False)
+        show_attention = st.checkbox("Show attention heatmap", value=False)
 
         if user_text.strip():
             import torch
@@ -1289,6 +1377,63 @@ with tab_translate:
             st.caption(
                 f"Encoded as {len(source_ids)} English subword tokens, including SOS/EOS."
             )
+
+            if show_attention:
+                from src.inference.attention_extraction import translate_with_attention
+
+                with st.spinner("Extracting attention weights"):
+                    attn_result = translate_with_attention(translate_model, src_tensor)
+
+                attn_matrix = attn_result["attention_matrix"]
+                generated_ids = attn_result["generated_ids"]
+                # byte-level BPE's raw .tokens()/id_to_token() strings are not
+                # human-readable (they use a byte<->unicode remapping); decoding
+                # one id at a time through the tokenizer's own decoder recovers
+                # the real text each subword piece represents
+                src_tokens = [
+                    en_tokenizer.decode([i], skip_special_tokens=False) or "?"
+                    for i in source_ids
+                ]
+                hyp_tokens = [
+                    or_tokenizer.decode([i], skip_special_tokens=False) or "?"
+                    for i in generated_ids[1:]
+                ]
+
+                heat_rows = []
+                for hi, hyp_tok in enumerate(hyp_tokens):
+                    if hi >= len(attn_matrix):
+                        break
+                    for si, src_tok in enumerate(src_tokens):
+                        if si >= len(attn_matrix[hi]):
+                            break
+                        heat_rows.append({
+                            "hyp_label": f"{hi}: {hyp_tok}",
+                            "src_label": f"{si}: {src_tok}",
+                            "hyp_order": hi,
+                            "src_order": si,
+                            "weight": attn_matrix[hi][si],
+                        })
+
+                if heat_rows:
+                    heat_df = pd.DataFrame(heat_rows)
+                    heatmap = (
+                        alt.Chart(heat_df)
+                        .mark_rect()
+                        .encode(
+                            x=alt.X("src_label:N", sort=alt.SortField("src_order"), title="English source tokens", axis=alt.Axis(labelAngle=-40)),
+                            y=alt.Y("hyp_label:N", sort=alt.SortField("hyp_order"), title="Odia generated tokens", axis=alt.Axis(labelFont="Noto Sans Oriya")),
+                            color=alt.Color("weight:Q", scale=alt.Scale(scheme="teals"), title="Attention weight"),
+                            tooltip=["src_label", "hyp_label", alt.Tooltip("weight:Q", format=".3f")],
+                        )
+                        .configure_view(strokeWidth=0)
+                        .properties(height=max(220, 26 * len(hyp_tokens)), background="#FFFFFF")
+                    )
+                    st.altair_chart(heatmap, use_container_width=True)
+                    st.caption(
+                        "Each row is one generated Odia subword token; each column is one English "
+                        "source subword token. Darker cells mean the decoder attended more strongly "
+                        "to that source token while generating that output token."
+                    )
         else:
             st.info("Type a sentence above to see its Odia translation.")
 
