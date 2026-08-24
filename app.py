@@ -24,13 +24,14 @@ try:
         EDA_RESULTS,
         ATTENTION_EXAMPLES,
         LENGTH_QUALITY_RESULTS,
+        REQUIREMENTS_COVERAGE,
     )
 
     DATA_LOAD_ERROR = None
 except Exception as exc:  # project_data.py not present or not importable yet
     HYPERPARAMS, DATA_STATS, TOKENIZER_STATS = {}, {}, {}
     TRAINING_HISTORY, EVAL_RESULTS, EDA_RESULTS = [], {}, {}
-    ATTENTION_EXAMPLES, LENGTH_QUALITY_RESULTS = [], {}
+    ATTENTION_EXAMPLES, LENGTH_QUALITY_RESULTS, REQUIREMENTS_COVERAGE = [], {}, {}
     DATA_LOAD_ERROR = str(exc)
 
 TEAL = "#0D9488"
@@ -223,6 +224,47 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     margin-bottom: 0.4rem;
 }
 
+.status-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-radius: 999px;
+    padding: 0.2rem 0.7rem;
+    white-space: nowrap;
+}
+.status-met {
+    background-color: #0D9488;
+    color: #FFFFFF;
+}
+.status-exceeded {
+    background-color: #B45309;
+    color: #FFFFFF;
+}
+.status-not-met {
+    background-color: #DC2626;
+    color: #FFFFFF;
+}
+
+.spec-quote {
+    background-color: #FFFBF3;
+    border-left: 4px solid #B45309;
+    border-radius: 8px;
+    padding: 0.75rem 1.1rem;
+    color: #1E293B;
+    font-size: 0.9rem;
+    font-style: italic;
+    line-height: 1.6;
+    margin: 0.6rem 0 1rem 0;
+}
+
+.evidence-where {
+    color: #64748B;
+    font-size: 0.8rem;
+    font-family: 'Inter', monospace;
+}
+
 .bleu-signature {
     color: #64748B;
     font-size: 0.85rem;
@@ -278,8 +320,28 @@ def load_translation_model():
     return model, load_tokenizer(EN_TOKENIZER_PATH), load_tokenizer(OR_TOKENIZER_PATH)
 
 
-tab_overview, tab_techniques, tab_arch, tab_data, tab_eda, tab_training, tab_results, tab_translate = st.tabs(
-    ["Overview", "NLP Techniques", "Architecture", "Data and Tokenization", "EDA", "Training", "Results", "Translate"]
+(
+    tab_overview,
+    tab_requirements,
+    tab_arch,
+    tab_data,
+    tab_eda,
+    tab_training,
+    tab_results,
+    tab_translate,
+    tab_techniques,
+) = st.tabs(
+    [
+        "Overview",
+        "Requirements",
+        "Architecture",
+        "Data and Tokenization",
+        "EDA",
+        "Training",
+        "Results",
+        "Live Demo",
+        "NLP Techniques",
+    ]
 )
 
 with tab_overview:
@@ -312,18 +374,118 @@ with tab_overview:
                 f"{final_val_loss:.3f}" if isinstance(final_val_loss, (int, float)) else "n/a",
             )
 
+    epochs_run = len(TRAINING_HISTORY) if TRAINING_HISTORY else "n/a"
+    first_val = TRAINING_HISTORY[0].get("val_loss") if TRAINING_HISTORY else None
+    n_enc = g(HYPERPARAMS, "n_encoder_layers")
+    n_dec = g(HYPERPARAMS, "n_decoder_layers")
+    d_model = g(HYPERPARAMS, "d_model")
+    n_heads = g(HYPERPARAMS, "n_heads")
+
     st.markdown(
-        """
+        f"""
         <div class="card-note">
-            The model is a compact 2-encoder / 2-decoder Transformer trained for 18
-            epochs on a Kaggle GPU session. It scores a low but non-degenerate BLEU,
-            reflecting the constraints of training a translation model from scratch
-            on a small subset and a small vocabulary rather than fine-tuning a
-            pretrained multilingual model.
+            Every component of this system was written from first principles -- the attention
+            mechanism, positional encoding, encoder and decoder stacks, masking, training loop and
+            both decoding strategies -- with no pretrained weights and no high-level Transformer
+            library. The model is intentionally compact ({n_enc} encoder and {n_dec} decoder blocks,
+            d_model {d_model}, {n_heads} attention heads) because the brief requires it to fit a
+            class compute budget. Trained for {epochs_run} epochs, validation loss fell from
+            {f"{first_val:.3f}" if isinstance(first_val, (int, float)) else "n/a"} to
+            {f"{final_val_loss:.3f}" if isinstance(final_val_loss, (int, float)) else "n/a"}.
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Where to find each deliverable</div>', unsafe_allow_html=True)
+
+    guide_rows = [
+        ("Requirements", "Every line of the assignment brief mapped to the artefact that satisfies it, with the file where it can be verified."),
+        ("Architecture", "The section 5.6 encoder-decoder structure, layer by layer, with the exact hyperparameters and parameter count."),
+        ("Data and Tokenization", "Corpus selection, Unicode normalisation, the two per-language subword tokenizers, and the length-filtering funnel."),
+        ("EDA", "Corpus analysis: length distributions, vocabulary richness, tokenizer coverage, and the English-Odia subword asymmetry."),
+        ("Training", "Loss curves, the optimiser and warmup schedule, and the causal-mask verification the brief specifically warns about."),
+        ("Results", "BLEU on the held-out test set, the five required sample translations, and a full-test-set analysis of how quality varies with sentence length."),
+        ("Live Demo", "Translate any English sentence with the trained model, compare greedy against beam search, and inspect the decoder's attention."),
+        ("NLP Techniques", "Reference table of every technique applied across preprocessing, tokenization, architecture, training, decoding and evaluation."),
+    ]
+    guide_html = ["<table class='result-table'><thead><tr><th style='width:22%'>Tab</th><th>What it shows</th></tr></thead><tbody>"]
+    for tab_name, desc in guide_rows:
+        guide_html.append(f"<tr><td><strong>{tab_name}</strong></td><td>{desc}</td></tr>")
+    guide_html.append("</tbody></table>")
+    st.markdown("".join(guide_html), unsafe_allow_html=True)
+
+with tab_requirements:
+    st.markdown('<div class="section-heading">Assignment requirements coverage</div>', unsafe_allow_html=True)
+
+    if not REQUIREMENTS_COVERAGE:
+        st.info("Requirements coverage data is not available.")
+    else:
+        summary = REQUIREMENTS_COVERAGE.get("summary", {})
+        groups = REQUIREMENTS_COVERAGE.get("groups", [])
+
+        s1, s2, s3, s4 = st.columns(4)
+        with s1:
+            with st.container(border=True):
+                st.metric("Requirements checked", fmt_num(summary.get("total_items", "n/a")))
+        with s2:
+            with st.container(border=True):
+                st.metric("Fully met", fmt_num(summary.get("met", "n/a")))
+        with s3:
+            with st.container(border=True):
+                st.metric("Exceeded", fmt_num(summary.get("exceeded", "n/a")))
+        with s4:
+            with st.container(border=True):
+                st.metric("Automated tests passing", fmt_num(summary.get("tests_passing", "n/a")))
+
+        not_met = summary.get("not_met", 0)
+        if isinstance(not_met, int) and not_met > 0:
+            st.warning(f"{not_met} requirement(s) are recorded as not met. See the detail below.")
+
+        st.markdown(
+            """
+            <div class="card-note">
+                Every row below maps one line of the assignment brief to the specific artefact that
+                satisfies it, naming the file where it can be verified. "Exceeded" marks the items
+                where the brief's optional or bonus work was completed, or where the verification
+                goes beyond what was asked.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        _badge_class = {
+            "met": "status-met",
+            "exceeded": "status-exceeded",
+            "not_met": "status-not-met",
+        }
+        _badge_label = {"met": "Met", "exceeded": "Exceeded", "not_met": "Not met"}
+
+        for group in groups:
+            st.markdown(
+                f'<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">{group.get("group", "")}</div>',
+                unsafe_allow_html=True,
+            )
+            spec_text = group.get("spec_text", "")
+            if spec_text:
+                st.markdown(f'<div class="spec-quote">"{spec_text}"</div>', unsafe_allow_html=True)
+
+            rows = ["<table class='result-table'><thead><tr><th style='width:22%'>Requirement</th><th style='width:11%'>Status</th><th>Evidence</th></tr></thead><tbody>"]
+            for item in group.get("items", []):
+                status = str(item.get("status", "")).lower()
+                cls = _badge_class.get(status, "status-met")
+                label = _badge_label.get(status, status.title())
+                where = item.get("where", "")
+                where_html = f'<br/><span class="evidence-where">{where}</span>' if where else ""
+                rows.append(
+                    "<tr>"
+                    f"<td><strong>{item.get('requirement', '')}</strong></td>"
+                    f"<td><span class='status-badge {cls}'>{label}</span></td>"
+                    f"<td>{item.get('evidence', '')}{where_html}</td>"
+                    "</tr>"
+                )
+            rows.append("</tbody></table>")
+            st.markdown("".join(rows), unsafe_allow_html=True)
 
 with tab_techniques:
     st.markdown('<div class="section-heading">NLP techniques used in this project</div>', unsafe_allow_html=True)
@@ -384,13 +546,16 @@ with tab_techniques:
         ("Adam optimizer (Transformer-tuned)", "A gradient-based optimizer that adapts its per-parameter step size using running estimates of gradient mean and variance.", "Uses betas=(0.9, 0.98) and eps=1e-9, matching the original Transformer paper's settings rather than PyTorch's defaults."),
         ("Learning-rate warmup (Noam schedule)", "Ramps the learning rate up linearly for an initial number of steps, then decays it proportional to the inverse square root of the step count.", "900 warmup steps; prevents large, destabilizing parameter updates before the attention layers have started to form sensible patterns."),
         ("Gradient clipping", "Caps the overall gradient norm at every step to prevent occasional large gradients from destabilizing training.", "Clipped to a maximum norm of 1.0 on every optimizer step."),
-        ("Best-checkpoint selection", "Retains the model state from whichever epoch had the lowest validation loss, rather than simply the last epoch.", "Validation loss decreased every single epoch across all 18 epochs of the real training run, so the best and last checkpoints ended up identical -- itself a sign of healthy, non-overfitting training within the epoch budget used."),
+        ("Best-checkpoint selection", "Retains the model state from whichever epoch had the lowest validation loss, rather than simply the last epoch.", "Validation loss is tracked every epoch and the best-scoring checkpoint is saved separately from the final one, so an overfitting tail would never silently become the evaluated model."),
+        ("Label smoothing", "Softens the one-hot training target so the model is penalised for extreme overconfidence, which improves calibration and reduces repetitive output.", "Applied at 0.1 in the cross-entropy loss. Note this shifts the absolute loss floor, so smoothed and unsmoothed runs are not directly comparable by loss value alone."),
     ])
 
     st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">5. Decoding strategies</div>', unsafe_allow_html=True)
     technique_table([
         ("Greedy decoding", "Generates one token at a time by always picking the single highest-probability next token and feeding it back in, until an end-of-sequence token or a length limit is reached.", "The required decoding strategy for this assignment; used for every translation shown on the Results and Translate tabs by default."),
-        ("Beam search decoding", "Maintains several candidate partial translations simultaneously (a beam), scored by length-normalized cumulative log-probability, exploring more of the output space than greedy decoding.", "Implemented as the assignment's optional bonus item, kept in an isolated module so it cannot affect the required greedy path; available live via the checkbox on the Translate tab."),
+        ("Beam search decoding", "Maintains several candidate partial translations simultaneously (a beam), scored by length-normalized cumulative log-probability, exploring more of the output space than greedy decoding.", "Implemented as the assignment's optional bonus item, kept in an isolated module so it cannot affect the required greedy path; available live via the checkbox on the Live Demo tab."),
+        ("No-repeat n-gram blocking", "Prevents the decoder from emitting any n-gram it has already produced in the same sequence, by masking the offending continuation token before the arg-max is taken.", "Applied at n=3 to both greedy and beam decoding. This targets the degenerate repetition loop that is the dominant failure mode on longer sentences, and needs no retraining since it acts purely at inference time."),
+        ("Attention inspection", "Reads out the decoder's cross-attention distribution over the source sentence for each generated token, showing which source words the model was relying on.", "Exposed as a non-invasive side channel that leaves the forward computation numerically unchanged, and rendered as a heatmap in the Live Demo tab."),
     ])
 
     st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">6. Evaluation methodology</div>', unsafe_allow_html=True)
@@ -763,25 +928,6 @@ with tab_eda:
             unsafe_allow_html=True,
         )
 
-    if split_comp:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Split composition</div>', unsafe_allow_html=True)
-        split_df = pd.DataFrame(
-            [{"split": k, "count": v} for k, v in split_comp.items()]
-        )
-        split_chart = (
-            alt.Chart(split_df)
-            .mark_bar(color=TEAL, size=45, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
-            .encode(
-                x=alt.X("split:N", title=None, sort=["train", "val", "test"]),
-                y=alt.Y("count:Q", title="Sentence pairs"),
-                tooltip=["split", "count"],
-            )
-            .configure_view(strokeWidth=0)
-            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-            .properties(height=260, background="#FFFFFF")
-        )
-        st.altair_chart(split_chart, use_container_width=True)
-
     if not (en_words or top_en or split_comp):
         st.info("No EDA results available.")
 
@@ -925,24 +1071,6 @@ with tab_eda:
                 A high share of "other" endings in either language usually indicates truncated, list-like,
                 or otherwise noisy source sentences that survived cleaning without a terminal mark, which is
                 useful context when interpreting outliers in the length distributions above.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if isinstance(en_pct_digits, (int, float)):
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Sentences containing digits (English)</div>', unsafe_allow_html=True)
-        digit_counts = {"Contains a digit": en_pct_digits, "No digit": max(0.0, 100.0 - en_pct_digits)}
-        st.altair_chart(_pie(digit_counts, colors=[AMBER, TEAL], sort_desc=False), use_container_width=True)
-        st.markdown(
-            f"""
-            <div class="card-note">
-                {en_pct_digits:.1f}% of English sentences in the corpus contain at least one digit
-                (dates, statistics, monetary or case-reference figures typical of the news-derived
-                Samanantar source material). Digits are a useful tokenizer stress test: numeric strings
-                tend to be rare and highly variable, so they are disproportionately likely to fragment
-                into many short subword pieces or to trigger UNK fallbacks if the vocabulary under-covers
-                them.
             </div>
             """,
             unsafe_allow_html=True,
@@ -1168,10 +1296,11 @@ with tab_training:
     else:
         st.info("No training history available.")
 
+    _n_epochs = len(TRAINING_HISTORY) if TRAINING_HISTORY else 0
     st.markdown(
-        """
+        f"""
         <div class="card-note">
-            Train and validation loss decrease smoothly together across all 18
+            Train and validation loss decrease smoothly together across all {_n_epochs}
             epochs with no divergence between them. This is the expected shape for
             a correctly masked decoder: if validation loss had dropped suspiciously
             below training loss, it would suggest the causal mask was leaking
@@ -1180,6 +1309,53 @@ with tab_training:
         """,
         unsafe_allow_html=True,
     )
+
+    st.markdown('<div class="section-heading" style="margin-top:1.6rem;">Causal-mask verification</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="spec-quote">
+            "watch for the causal mask bug (if val loss is suspiciously perfect, your decoder is
+            peeking!)"
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div class="card-note">
+            A smooth loss curve is only circumstantial evidence, so the masking is verified
+            mechanically instead of by eye. With dropout disabled, the decoder is run twice on target
+            sequences that are identical up to a cut position and different after it; the output
+            logits at every position up to the cut are asserted to be numerically identical. If any
+            future token could influence an earlier prediction, that assertion fails.
+            <br/><br/>
+            A test that passes is only meaningful if it can also fail, so a negative control runs the
+            same check against a deliberately broken, non-causal mask and confirms it does fail --
+            proving the test has real diagnostic power rather than passing vacuously. Three further
+            tests assert the mask tensors directly: future positions always blocked, padding always
+            blocked, and valid past positions never blocked.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    mask_tests = [
+        ("Leak invariance", "Outputs before the cut position are unchanged by future target tokens.", "tests/test_masks.py"),
+        ("Negative control", "The same check fails against a deliberately non-causal mask, proving the test has teeth.", "tests/test_masks.py"),
+        ("Decoder mask coverage", "Future and padding positions blocked; valid past positions allowed.", "tests/test_masks.py"),
+        ("Cross-attention mask", "Source padding blocked for every decoder query position.", "tests/test_masks.py"),
+    ]
+    mt_html = ["<table class='result-table'><thead><tr><th style='width:22%'>Check</th><th style='width:11%'>Result</th><th>What it proves</th></tr></thead><tbody>"]
+    for name, proves, where in mask_tests:
+        mt_html.append(
+            "<tr>"
+            f"<td><strong>{name}</strong></td>"
+            "<td><span class='status-badge status-met'>Passing</span></td>"
+            f"<td>{proves}<br/><span class='evidence-where'>{where}</span></td>"
+            "</tr>"
+        )
+    mt_html.append("</tbody></table>")
+    st.markdown("".join(mt_html), unsafe_allow_html=True)
 
 with tab_results:
     st.markdown('<div class="section-heading">Evaluation</div>', unsafe_allow_html=True)

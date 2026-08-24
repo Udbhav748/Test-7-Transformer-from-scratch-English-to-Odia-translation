@@ -87,3 +87,6 @@ EVAL_RESULTS["long_sentence_index"] = max(
 ATTENTION_EXAMPLES = _load_json(REPORTS_DIR / "attention_examples.json")
 
 LENGTH_QUALITY_RESULTS = _load_json(REPORTS_DIR / "length_quality_analysis.json")
+
+_requirements_path = REPORTS_DIR / "requirements_coverage.json"
+REQUIREMENTS_COVERAGE = _load_json(_requirements_path) if _requirements_path.exists() else {}
