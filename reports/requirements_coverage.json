@@ -1,0 +1,215 @@
+{
+  "groups": [
+    {
+      "group": "Data preparation",
+      "spec_text": "parallel sentence pairs; add <SOS>/<EOS>; build subword tokenizers per language (or a shared one); pad + attention masks",
+      "items": [
+        {
+          "requirement": "Parallel sentence pairs",
+          "status": "met",
+          "evidence": "58,000 English-Odia candidate pairs were streamed from the ai4bharat/samanantar 'or' config and saved to data/raw/candidates.parquet; after MAX_LEN=64 subword filtering 40,000 pairs were seed-shuffled (RANDOM_SEED=42) into on-disk splits of 36,000 train / 2,000 val / 2,000 test.",
+          "where": "src/data/download.py, src/data/split.py, configs/base.py, data/processed/*.parquet"
+        },
+        {
+          "requirement": "<SOS> / <EOS> added to every sequence",
+          "status": "met",
+          "evidence": "Each tokenizer carries a TemplateProcessing post-processor with template '<SOS> $A <EOS>', so every encode() call is wrapped automatically; encoding a sample English string returns ids beginning with 1 (<SOS>) and ending with 2 (<EOS>).",
+          "where": "src/tokenization/train_tokenizer.py:28-31, src/tokenization/tokenizer_utils.py:10-11"
+        },
+        {
+          "requirement": "Subword tokenizers, one per language",
+          "status": "met",
+          "evidence": "Two independent byte-level BPE tokenizers were trained and saved, tokenizers/en_bpe.json and tokenizers/or_bpe.json, each with a verified vocabulary size of exactly 8,000 tokens and identical special-token ids <PAD>=0, <SOS>=1, <EOS>=2, <UNK>=3 (asserted at training time).",
+          "where": "src/tokenization/train_tokenizer.py, configs/base.py:38-41, tokenizers/en_bpe.json, tokenizers/or_bpe.json"
+        },
+        {
+          "requirement": "Padding",
+          "status": "met",
+          "evidence": "collate_fn right-pads each batch to that batch's longest sequence with PAD_ID=0 via _pad_batch, for both the source and target side, and returns the padded id tensors used by the training loop.",
+          "where": "src/data/dataset.py:33-49"
+        },
+        {
+          "requirement": "Attention masks",
+          "status": "met",
+          "evidence": "Three mask builders exist and are wired into every forward pass: make_padding_mask for encoder self-attention, make_decoder_self_attn_mask (causal AND pad, shape [B,1,T,T]) for decoder self-attention, and make_cross_attn_mask ([B,1,1,S]) for cross-attention; masks are boolean True='attend' and are applied via masked_fill(~mask, -1e9) before softmax.",
+          "where": "src/model/masks.py, src/model/transformer.py:48-50, src/model/attention.py:43-46"
+        },
+        {
+          "requirement": "No sentence leakage between train / val / test",
+          "status": "met",
+          "evidence": "split.py drops duplicate source sentences and then asserts pairwise-empty intersections between the train, val and test source-sentence sets before any parquet is written, so an examiner cannot find the same English sentence in two splits.",
+          "where": "src/data/split.py:43, src/data/split.py:71-76"
+        }
+      ]
+    },
+    {
+      "group": "Architecture (assignment section 5.6)",
+      "spec_text": "Build exactly section 5.6: embedding + positional encoding -> N encoder blocks (self-attn -> FFN, residual+LN) -> N decoder blocks (masked self-attn -> cross-attn -> FFN) -> linear+softmax. Start small: d=128, heads=4, N=2 - it must fit class compute.",
+      "items": [
+        {
+          "requirement": "Embedding + positional encoding",
+          "status": "met",
+          "evidence": "Embeddings composes TokenEmbedding (nn.Embedding scaled by sqrt(d_model)=sqrt(128)) with a fixed sinusoidal PositionalEncoding built from the sin/cos 10000^(2i/d) formula and registered as a non-persistent buffer of length MAX_LEN+16 = 80; both encoder and decoder use it.",
+          "where": "src/model/embeddings.py, src/model/encoder.py:47, src/model/decoder.py:60"
+        },
+        {
+          "requirement": "N encoder blocks: self-attn -> FFN, residual + LayerNorm",
+          "status": "met",
+          "evidence": "EncoderBlock.forward is exactly x = norm1(x + dropout1(self_attn(x,x,x,src_mask))) then x = norm2(x + dropout2(feed_forward(x))) -- post-norm residual as in Vaswani et al.; Encoder stacks N_ENCODER_LAYERS=2 such blocks in an nn.ModuleList.",
+          "where": "src/model/encoder.py:27-33, src/model/encoder.py:48-50"
+        },
+        {
+          "requirement": "N decoder blocks: masked self-attn -> cross-attn -> FFN",
+          "status": "met",
+          "evidence": "DecoderBlock.forward runs masked self-attention (tgt_mask = causal AND pad), then cross-attention with the encoder output as key/value under the source pad mask, then the FFN, each wrapped in its own residual + LayerNorm (norm1/norm2/norm3); Decoder stacks N_DECODER_LAYERS=2 such blocks.",
+          "where": "src/model/decoder.py:31-46, src/model/decoder.py:61-63"
+        },
+        {
+          "requirement": "Linear + softmax output",
+          "status": "met",
+          "evidence": "Seq2SeqTransformer ends in a separate nn.Linear(128, tgt_vocab_size=8000) output projection returning raw logits (untied from the target embedding by default, TIE_OUTPUT_PROJECTION=False); softmax is applied by nn.CrossEntropyLoss at training time and by F.log_softmax at beam-search decode time, and tests/test_model_shapes.py::test_forward_returns_raw_logits_not_probabilities pins this contract.",
+          "where": "src/model/transformer.py:42-54, src/training/train.py:81, src/inference/beam_search.py:44"
+        },
+        {
+          "requirement": "Exact required hyperparameters d=128, heads=4, N=2",
+          "status": "met",
+          "evidence": "configs/base.py sets D_MODEL=128, N_HEADS=4, N_ENCODER_LAYERS=2, N_DECODER_LAYERS=2 (with D_FF=512, DROPOUT=0.1) and these are the constructor defaults for every module, so the built model matches the spec exactly with no override path used in training or evaluation.",
+          "where": "configs/base.py:44-51, src/model/transformer.py:24-36"
+        },
+        {
+          "requirement": "Fits class compute",
+          "status": "met",
+          "evidence": "Instantiating the real model against the two 8k tokenizers gives 4,005,696 parameters (all trainable), and the full 36,000-pair training run completed on a Kaggle CPU at about 410 s/epoch (~2 hours for 18 epochs) at batch size 128 -- no GPU required.",
+          "where": "src/model/transformer.py, tests/test_model_shapes.py::test_param_count_sanity_and_report, reports/write_up.md:18, reports/write_up.md:95-103"
+        },
+        {
+          "requirement": "Attention implemented from scratch (not a torch built-in)",
+          "status": "met",
+          "evidence": "MultiHeadAttention hand-rolls q/k/v/out nn.Linear projections, head splitting/merging, QK^T/sqrt(head_dim) scoring, masking and softmax; grepping src/ finds no use of nn.Transformer, nn.MultiheadAttention, nn.TransformerEncoder or F.scaled_dot_product_attention (the only hit is a comment in dataset.py).",
+          "where": "src/model/attention.py, src/model/feedforward.py"
+        }
+      ]
+    },
+    {
+      "group": "Training",
+      "spec_text": "Train: teacher forcing, cross-entropy ignoring pad tokens, Adam with warmup; watch for the causal mask bug (if val loss is suspiciously perfect, your decoder is peeking!).",
+      "items": [
+        {
+          "requirement": "Teacher forcing",
+          "status": "met",
+          "evidence": "run_epoch feeds the gold target shifted right as decoder input and scores against the gold target shifted left: decoder_input = tgt_ids[:, :-1], decoder_target = tgt_ids[:, 1:].",
+          "where": "src/training/train.py:29-34"
+        },
+        {
+          "requirement": "Cross-entropy ignoring pad tokens",
+          "status": "met",
+          "evidence": "The loss is nn.CrossEntropyLoss(ignore_index=PAD_ID, label_smoothing=0.1) with PAD_ID=0, and reported epoch loss is renormalized by the non-pad token count ((decoder_target != PAD_ID).sum()) so padding influences neither the gradient nor the logged number.",
+          "where": "src/training/train.py:81, src/training/train.py:43-47"
+        },
+        {
+          "requirement": "Adam with warmup",
+          "status": "met",
+          "evidence": "torch.optim.Adam(lr=1.0, betas=(0.9, 0.98), eps=1e-9) is driven by a Noam LambdaLR schedule, lr = d_model^-0.5 * min(step^-0.5, step * warmup^-1.5) with WARMUP_STEPS=900, stepped once per batch; gradients are clipped to norm 1.0.",
+          "where": "src/training/lr_schedule.py, src/training/train.py:73-74, configs/base.py:61-64"
+        },
+        {
+          "requirement": "Causal-mask bug check (decoder not peeking)",
+          "status": "exceeded",
+          "evidence": "Beyond simply watching the loss curve, tests/test_masks.py contains four passing tests: a full-model leak-invariance test (logits at positions <= t are identical when target tokens after t are changed), a negative control that reruns the same check through a deliberately all-True mask and asserts it FAILS -- proving the invariance test is not vacuous -- plus position-by-position assertions that future keys and <PAD> keys are always blocked and valid causal keys never are.",
+          "where": "tests/test_masks.py:17-115, reports/write_up.md:81-91"
+        },
+        {
+          "requirement": "Real training run completed, loss behaves correctly",
+          "status": "met",
+          "evidence": "reports/training_history.json records 18 epochs on the full 36,000-pair train split with train loss 5.0468 -> 1.7868 and val loss 3.2268 -> 1.9257, decreasing together with validation consistently above training and no discontinuous drop -- the opposite of the 'suspiciously perfect' leakage symptom the spec warns about.",
+          "where": "reports/training_history.json, reports/figures/loss_curve.png, reports/write_up.md:107-117"
+        }
+      ]
+    },
+    {
+      "group": "Inference",
+      "spec_text": "Inference: greedy decode loop (feed outputs back until <EOS>); beam search = bonus marks.",
+      "items": [
+        {
+          "requirement": "Greedy decode loop feeding outputs back until <EOS>",
+          "status": "met",
+          "evidence": "greedy_decode starts from a [[<SOS>]] tensor, repeatedly runs the full model, takes argmax over the last position, concatenates it onto the running target and breaks as soon as the emitted id equals EOS_ID=2, capped at GREEDY_MAX_DECODE_LEN=64; it is the decoder used for the reported BLEU over all 2,000 test pairs.",
+          "where": "src/inference/greedy_decode.py, scripts/run_evaluation.py:37"
+        },
+        {
+          "requirement": "Beam search (spec's explicit bonus-marks item)",
+          "status": "exceeded",
+          "evidence": "beam_search_decode implements a full beam with BEAM_WIDTH=4 and length-normalized scoring (cum_logprob / length^0.6, BEAM_LENGTH_PENALTY=0.6), completed-hypothesis collection and early stopping; run against the real kaggle_run_best.pt checkpoint on 'There is nothing on the ground.' it returns a different, more complete hypothesis than greedy (beam 'ସେଠାରେ କିଛି ନାହିଁ।' vs greedy 'କିଛି ବି ନାହିଁ।'), and it is exposed in the dashboard's translate path.",
+          "where": "src/inference/beam_search.py, configs/base.py:68-70, app.py:1466-1469"
+        },
+        {
+          "requirement": "Decode-time repetition control (beyond spec)",
+          "status": "exceeded",
+          "evidence": "Not asked for by the spec: both decoders bar any token that would complete an already-seen n-gram of size NO_REPEAT_NGRAM_SIZE=3, a standard inference-time fix for the degenerate repetition loops small greedy models fall into; four tests in tests/test_repetition.py pin the banned-token logic and assert a random model never repeats a 3-gram under greedy decoding.",
+          "where": "src/inference/repetition.py, src/inference/greedy_decode.py:23-25, src/inference/beam_search.py:46-48, tests/test_repetition.py"
+        }
+      ]
+    },
+    {
+      "group": "Evaluation",
+      "spec_text": "Evaluate: BLEU score (n-gram overlap with reference translation) + show 5 sample translations, including one long sentence to discuss limitations.",
+      "items": [
+        {
+          "requirement": "BLEU score",
+          "status": "met",
+          "evidence": "sacrebleu corpus BLEU over the full 2,000-pair test split is 2.19 (precisions 19.1/4.0/1.2/0.4, BP 0.885, hyp_len 13,648 vs ref_len 15,317), with identical postprocessing -- decode, strip special tokens, normalize whitespace -- applied to hypotheses and references alike; decoding all 2,000 examples took 340.4 s.",
+          "where": "reports/eval_results.json:2-5, src/evaluation/bleu.py, scripts/run_evaluation.py"
+        },
+        {
+          "requirement": "Exactly 5 sample translations shown",
+          "status": "met",
+          "evidence": "reports/eval_results.json contains a 'samples' array of exactly 5 entries, each with source, reference and hypothesis, and the same 5 rows are reproduced as a table in the write-up; NUM_SAMPLE_TRANSLATIONS=5 in the config drives select_samples.",
+          "where": "reports/eval_results.json:6-32, reports/write_up.md:132-140, configs/base.py:77"
+        },
+        {
+          "requirement": "One long sentence among the samples",
+          "status": "met",
+          "evidence": "select_samples deterministically reserves the 5th slot for a source sentence at or above the 90th percentile of test-split source word length (LONG_SENTENCE_PERCENTILE=0.90), drawing the other 4 from the remainder; the selected long example is 'BJP media cell head and Rajya Sabha member Anil Baluni dismissed the charge.' (12 English words).",
+          "where": "src/evaluation/sample_translations.py:10-24, reports/eval_results.json:27-31"
+        },
+        {
+          "requirement": "Discussion of limitations",
+          "status": "exceeded",
+          "evidence": "The write-up diagnoses the long-sentence failure as degenerate repetition and names its two causes (d=128 / 2 decoder layers of capacity, and a 36k-pair training set), and it is backed by a full-test-set measurement rather than one anecdote: reports/length_quality_analysis.json scores all 2,000 examples and shows mean sentence BLEU falling 9.726 -> 6.959 -> 5.472 -> 4.747 -> 2.891 across the 3-5 / 6-8 / 9-11 / 12-15 / 16-20 word buckets while the repetition rate climbs 17.75% -> 72.6% (Pearson r = -0.2412 vs source word length, -0.2676 vs subword length).",
+          "where": "reports/write_up.md:142-163, reports/length_quality_analysis.json, scripts/run_length_quality_analysis.py"
+        }
+      ]
+    },
+    {
+      "group": "Odia-specific notes (extra credit)",
+      "spec_text": "use a Unicode-clean corpus (e.g., Samanantar / OPUS pairs), normalize Odia Unicode, and expect subword tokenization to matter a lot for a morphologically rich Indic language - mention this in your write-up for extra credit",
+      "items": [
+        {
+          "requirement": "Unicode-clean corpus",
+          "status": "met",
+          "evidence": "The corpus is ai4bharat/samanantar, config 'or' -- one of the two sources the spec names explicitly -- loaded in streaming mode with per-example cleaning and source-side deduplication before any pair is kept.",
+          "where": "configs/base.py:19-20, src/data/download.py:21-38"
+        },
+        {
+          "requirement": "Odia Unicode normalization",
+          "status": "exceeded",
+          "evidence": "clean_text applies Unicode NFC normalization, then strips ZWSP and BOM outright, removes ZWJ/ZWNJ runs at string edges and collapses interior runs of 2+ joiners to a single one -- deliberately preserving a lone ZWJ/ZWNJ because it carries meaning in Indic conjunct formation -- then normalizes whitespace; an added inspect_nfc_anomalies() idempotency audit over 500 Odia samples found 0 anomalies.",
+          "where": "src/data/clean.py:17-55, reports/write_up.md:63-68"
+        },
+        {
+          "requirement": "Subword tokenization discussion for a morphologically rich Indic language",
+          "status": "exceeded",
+          "evidence": "The write-up devotes a dedicated section to it with measured, not asserted, numbers: at the same 8k vocabulary the pilot found English averaging 17.5 subword tokens (median 13) against 49.8 for Odia (median 39), which is why MAX_LEN=64 drops ~22-23% of pairs almost always on the Odia side; the section further covers multi-byte script encoding cost, suffixation-heavy morphology consuming BPE merge budget, and conjunct/virama normalization, plus the measured retention curve at MAX_LEN 32/48/64/80/96/128.",
+          "where": "reports/write_up.md:37-73, reports/tokenizer_pilot_stats.json, configs/base.py:1-7"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_items": 28,
+    "met": 22,
+    "exceeded": 6,
+    "not_met": 0,
+    "tests_passing": 18
+  }
+}
