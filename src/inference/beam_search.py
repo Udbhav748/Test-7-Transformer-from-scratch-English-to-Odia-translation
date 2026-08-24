@@ -1,7 +1,15 @@
 import torch
 import torch.nn.functional as F
 
-from configs.base import BEAM_LENGTH_PENALTY, BEAM_WIDTH, EOS_ID, GREEDY_MAX_DECODE_LEN, SOS_ID
+from configs.base import (
+    BEAM_LENGTH_PENALTY,
+    BEAM_WIDTH,
+    EOS_ID,
+    GREEDY_MAX_DECODE_LEN,
+    NO_REPEAT_NGRAM_SIZE,
+    SOS_ID,
+)
+from src.inference.repetition import banned_ngram_tokens
 
 
 def _normalized_score(cum_logprob: float, length: int, length_penalty: float) -> float:
@@ -15,6 +23,7 @@ def beam_search_decode(
     beam_width: int = BEAM_WIDTH,
     max_len: int = GREEDY_MAX_DECODE_LEN,
     length_penalty: float = BEAM_LENGTH_PENALTY,
+    no_repeat_ngram_size: int = NO_REPEAT_NGRAM_SIZE,
 ) -> list[int]:
     device = src_ids.device
     was_training = model.training
@@ -33,6 +42,11 @@ def beam_search_decode(
             tgt_ids = torch.tensor([seq], dtype=torch.long, device=device)
             logits = model(src_ids, tgt_ids)
             log_probs = F.log_softmax(logits[0, -1, :], dim=-1)
+
+            banned = banned_ngram_tokens(seq, no_repeat_ngram_size)
+            for token_id in banned:
+                log_probs[token_id] = float("-inf")
+
             top_logprobs, top_ids = log_probs.topk(beam_width)
 
             for logprob, token_id in zip(top_logprobs.tolist(), top_ids.tolist()):

@@ -68,6 +68,10 @@ LABEL_SMOOTHING = 0.1
 GREEDY_MAX_DECODE_LEN = MAX_LEN
 BEAM_WIDTH = 4
 BEAM_LENGTH_PENALTY = 0.6
+# Blocks a repeat of any n-gram of this size already generated in the same
+# sequence -- a standard inference-time fix for the degenerate repetition
+# loops small greedy-decoded models fall into, with no retraining needed.
+NO_REPEAT_NGRAM_SIZE = 3
 
 # --- Evaluation ---
 NUM_SAMPLE_TRANSLATIONS = 5
