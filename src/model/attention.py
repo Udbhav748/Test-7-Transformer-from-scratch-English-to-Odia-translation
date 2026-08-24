@@ -44,6 +44,7 @@ class MultiHeadAttention(nn.Module):
             scores = scores.masked_fill(~mask, _MASK_FILL_VALUE)
 
         attn = torch.softmax(scores, dim=-1)
+        self.last_attn_weights = attn.detach()
         out = torch.matmul(attn, v)
         out = self._merge_heads(out)
         return self.out_proj(out)
