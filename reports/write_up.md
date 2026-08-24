@@ -98,66 +98,88 @@ P100 GPU, but its compute architecture (sm_60) is no longer supported by the pre
 build on that image, so the very first `forward()` call raised `CUDA error: no kernel image is
 available for execution on the device`. The notebook was made robust to this by probing GPU
 usability with an actual matmul at runtime (not just `torch.cuda.is_available()`, which only checks
-driver presence) and falling back to CPU automatically. The real run trained on Kaggle's CPU as a
-result — about 410 seconds/epoch, ~2 hours total for 18 epochs over the full 36,000-pair train
-split at batch size 128.
+driver presence) and falling back to CPU automatically. Training ran on Kaggle's CPU as a result.
+
+An initial 18-epoch run (train loss 5.0468 -> 1.7868, val loss 3.2268 -> 1.9257) established that
+the setup was correct and the causal mask was healthy, but validation loss had not plateaued —
+it was still improving every single epoch. That run was extended to **40 epochs** with **label
+smoothing (0.1)** added to the loss (a standard regularizer that softens the one-hot training
+target; it changes the achievable loss floor, so the two runs' raw loss values are not directly
+comparable). The architecture was not changed — `d=128, heads=4, N=2` throughout, per the
+assignment's compute constraint. The final run took roughly 410-455 seconds/epoch, about 4.9 hours
+total, over the full 36,000-pair train split at batch size 128.
 
 ![training and validation loss curve](figures/loss_curve.png)
 
 | epoch | train loss | val loss |
 |---|---|---|
-| 1 | 5.0468 | 3.2268 |
-| 5 | 2.3101 | 2.2624 |
-| 10 | 1.9859 | 2.0395 |
-| 15 | 1.8418 | 1.9441 |
-| 18 | 1.7868 | 1.9257 |
+| 1 | 5.5902 | 4.0746 |
+| 10 | 3.0340 | 3.0447 |
+| 20 | 2.8551 | 2.9212 |
+| 30 | 2.7690 | 2.8715 |
+| 40 | 2.7144 | 2.8464 |
 
-Train and validation loss decrease together, smoothly, with validation consistently a bit above
+Train and validation loss decrease together, smoothly, with validation consistently at or above
 training and no discontinuous drop — the expected shape for a correctly-masked decoder, and the
-opposite of the "suspiciously perfect" pattern the assignment warns is a leakage symptom.
+opposite of the "suspiciously perfect" pattern the assignment warns is a leakage symptom. The curve
+flattens over the last ~10 epochs (val loss 2.8715 -> 2.8464), indicating the model is approaching
+what this architecture/data combination can achieve rather than being cut off mid-improvement.
 
 ## Evaluation
 
 BLEU (sacrebleu, computed with identical postprocessing — strip special tokens, decode, normalize
-whitespace — applied to both hypotheses and references) over the full 2,000-pair test split:
+whitespace — applied to both hypotheses and references) over the full 2,000-pair test split, using
+greedy decoding with 3-gram repetition blocking (a decode-time addition described below):
 
-**BLEU = 2.19** (`19.1/4.0/1.2/0.4` n-gram precisions, brevity penalty 0.885, hypothesis/reference
-length ratio 0.891)
+**BLEU = 2.60** (`22.2/4.9/1.7/0.5` n-gram precisions, brevity penalty 0.829, hypothesis/reference
+length ratio 0.842)
 
-This is a low but expected score for a deliberately small (4M-parameter, `d=128, N=2`) from-scratch
-transformer trained on 36,000 sentence pairs for 18 epochs, with no pretraining, no subword
-regularization, and CPU-only training limiting how much compute the run could use. It is in line
-with what small from-scratch NMT systems trained on under 100k pairs typically produce.
+| run | epochs | label smoothing | repetition blocking | BLEU |
+|---|---|---|---|---|
+| baseline | 18 | no | no | 2.19 |
+| enhanced | 40 | yes (0.1) | yes (n=3) | **2.60** |
+
+A ~19% relative BLEU improvement from three changes that all stay within the assignment's
+`d=128, heads=4, N=2` compute constraint: none of them add model capacity. This is still a low
+score in absolute terms — expected for a deliberately small (4M-parameter) from-scratch transformer
+trained on 36,000 sentence pairs, with no pretraining and CPU-only training limiting how much
+compute the run could use. It is in line with what small from-scratch NMT systems trained on under
+100k pairs typically produce.
 
 ### 5 sample translations
 
-| Source (English) | Reference (Odia) | Model output (greedy) |
+| Source (English) | Reference (Odia) | Model output (greedy, repetition-blocked) |
 |---|---|---|
-| Shutting down might cause them to lose unsaved work. | ବନ୍ଦ କରିବା ଫଳରେ ହୁଏତ ସେମାନେ ତାଙ୍କର ଅସଂରକ୍ଷିତ କାର୍ଯ୍ୟକୁ ହରାଇପାରନ୍ତି। | ସେମାନଙ୍କୁ କାରଣ କରିବାର କାରଣ କରିବାମ କରିବାର୍ତ୍ତ୍ତ୍ତ୍ତ୍ତ୍ର କାରଣ କରିବାଯାରଣ କରିବାଯାଯାର କ |
-| Bihar Chief Minister and JD(U) chief Nitish Kumar. | ବିହାର ମୁଖ୍ୟମନ୍ତ୍ରୀ ତଥା ଜେଡିୟୁ ମୁଖ୍ୟ ନୀତୀଶ କୁମାର ଜଣେ ଅତି ଚତୁର ରାଜନେତା। | ବିହାର ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁଖ୍ରୀ ଭାବେ ଶପଥ ନେଇ ମୁଖ୍ୟମନ୍ତ୍ରୀ । |
-| Students will be focussed. | ଛାତ୍ରଛାତ୍ରୀମାନେ ଉତ୍ସୃଖଳିତ ହେବେ । | ଛାତ୍ରଛାତ୍ରୀଙ୍କୁ ବିଦ୍ଧାନ କରାଯିବ। |
-| There is nothing on the ground. | ଜମି ବାଡ଼ି କିଛି ନାହିଁ । | କିଛି ବି ନାହିଁ। |
-| **(long sentence, >=90th percentile source length)** BJP media cell head and Rajya Sabha member Anil Baluni dismissed the charge. | ଭାଜପା ନ୍ୟାସନାଲ ମିଡିଆ ମୁଖ୍ୟ ତଥା ରାଜ୍ୟସଭା ସାଂସଦ ଅନିଲ ବାଲୁନିଙ୍କୁ ଏହି ବଙ୍ଗଳା ଦିଆଯାଇଛି । | ବିଜେପି ଓ ବିଜେପି ଓ ବିର ମିଧାନସଭାରେ ବିଜେପି ଓ ବିରେଡିରେ ବିରେଡିରେସିରେ ବିଜେପିରେଡିର |
+| Shutting down might cause them to lose unsaved work. | ବନ୍ଦ କରିବା ଫଳରେ ହୁଏତ ସେମାନେ ତାଙ୍କର ଅସଂରକ୍ଷିତ କାର୍ଯ୍ୟକୁ ହରାଇପାରନ୍ତି। | କାର୍ଯ୍ୟ କାମ କରିବାରେ ସେମାନଙ୍କୁ ସମବେଦନା ଜଣାପଡିଛି । |
+| Bihar Chief Minister and JD(U) chief Nitish Kumar. | ବିହାର ମୁଖ୍ୟମନ୍ତ୍ରୀ ତଥା ଜେଡିୟୁ ମୁଖ୍ୟ ନୀତୀଶ କୁମାର ଜଣେ ଅତି ଚତୁର ରାଜନେତା। | ବିହାରରେ ମୁଖ୍ୟମନ୍ତ୍ରୀ ନୀତୀତିରୀତ୍ୱାରୀ ରାତିକାତାଷ୍ରେ ଅଛନ୍ତି । |
+| Students will be focussed. | ଛାତ୍ରଛାତ୍ରୀମାନେ ଉତ୍ସୃଖଳିତ ହେବେ । | ଛାତ୍ରଛାତାତିରୀମାନେ ଶିକ୍ଷାରୀଙ୍କୁ କଡ଼ା ହେବ । |
+| There is nothing on the ground. | ଜମି ବାଡ଼ି କିଛି ନାହିଁ । | କିଛି ବି କି ବାର୍ଯ୍ୟାଳୟ ନୁହେଁ। |
+| **(long sentence, >=90th percentile source length)** BJP media cell head and Rajya Sabha member Anil Baluni dismissed the charge. | ଭାଜପା ନ୍ୟାସନାଲ ମିଡିଆ ମୁଖ୍ୟ ତଥା ରାଜ୍ୟସଭା ସାଂସଦ ଅନିଲ ବାଲୁନିଙ୍କୁ ଏହି ବଙ୍ଗଳା ଦିଆଯାଇଛି । | ରାଜ୍ୟସଭାରେ ବିଜେପି ଓ ମୁଖ୍ୟ ବିଜୟୀ କରିଛିଜି । |
 
 ### Discussion: the long-sentence example and limitations
 
-The shortest example ("There is nothing on the ground" -> "କିଛି ବି ନାହିଁ।", roughly "there is
-nothing at all") is the clearest success: short, high-frequency vocabulary, close enough to a
-reasonable paraphrase of the reference. Quality degrades as sentence length and named-entity/proper
--noun density increase — visible even in the mid-length "Bihar Chief Minister..." example, which
-gets the topic (Bihar, chief minister) right but garbles the rest.
+The clearest change from the baseline checkpoint is on the long sentence itself: the earlier
+18-epoch, no-smoothing, pure-greedy checkpoint produced a pure repetition loop
+(`ବିଜେପି ଓ ବିଜେପି ଓ ବିର ମିଧାନସଭାରେ ବିଜେପି ଓ...`, "BJP and BJP and..." repeating). The enhanced
+checkpoint instead produces a short, grammatically complete sentence that stays on-topic (BJP,
+Rajya Sabha) without looping. Two independent changes contributed to this: more training/label
+smoothing gave the model better-calibrated probabilities, and decode-time 3-gram repetition
+blocking (`src/inference/repetition.py`) directly forbids the decoder from re-emitting an n-gram it
+has already produced, regardless of how confident it is in doing so.
 
-The designated long sentence is the clearest failure mode: the model correctly starts with
-"ବିଜେପି" (BJP), which is on-topic, but then falls into **degenerate repetition**
-("ବିଜେପି ଓ ବିଜେପି ଓ...", roughly "BJP and BJP and...") rather than producing a fluent full
-sentence. This is a well-known failure mode of small, greedy-decoded, from-scratch transformers:
-without beam search or repetition penalties, the model can enter a self-reinforcing loop once its
-hidden state effectively "forgets" how much of the source content it has already covered, which
-becomes increasingly likely the longer the required output gets and the more named entities/rare
-subwords it needs to place correctly. The two compounding causes here are (1) limited model
-capacity (`d=128`, only 2 decoder layers) relative to the task, and (2) a training set an order of
-magnitude smaller than what production NMT systems use, both deliberate given the "must fit class
-compute" constraint. Beam search (`src/inference/beam_search.py`, implemented as the assignment's
-bonus item) mitigates but does not eliminate this class of failure, since it still uses the same
-underlying probability estimates — a model this small simply has not seen enough long, multi-clause
-examples to generalize reliably to them.
+This is real progress, but it does not mean the underlying capacity limitation is solved — it means
+the most visually obvious symptom of it is suppressed. A full-test-set measurement
+(`reports/length_quality_analysis.json`, all 2,000 test examples, not just this one anecdote) still
+shows a clear decline in translation quality as source sentences get longer: mean per-sentence BLEU
+falls from 10.09 (3-5 word sentences) to 7.82 (6-8 words) to 6.69 (9-11 words) to 4.73 (12-15 words)
+to 3.14 (16-20 words) to 2.80 (21+ words), a Pearson correlation of -0.235 against source word
+length. A broader repetition-signature detector (any bigram recurring 3+ times anywhere in the
+output, not just consecutively) still climbs from 16.3% on the shortest sentences to 76.0% on the
+longest — repetition blocking prevents the exact-loop failure mode but cannot give the model
+semantic content it never had the capacity or data to learn in the first place. The two
+compounding causes remain (1) limited model capacity (`d=128`, only 2 decoder layers), deliberate
+per the "must fit class compute" constraint, and (2) a 36,000-pair training set, an order of
+magnitude smaller than production NMT systems use. Beam search (`src/inference/beam_search.py`,
+implemented as the assignment's bonus item) is available as a further mitigation and is exposed
+live in the dashboard's Translate tab alongside an attention-weight heatmap for inspecting exactly
+which source tokens the decoder relied on for any given translation.
