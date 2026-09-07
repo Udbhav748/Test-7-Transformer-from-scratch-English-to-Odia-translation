@@ -1,0 +1,45 @@
+{
+  "bleu_score": 0.3149971618365302,
+  "bleu_signature": "BLEU = 0.31 6.6/0.5/0.1/0.0 (BP = 0.906 ratio = 0.910 hyp_len = 16324 ref_len = 17935)",
+  "num_test_examples": 2000,
+  "samples": [
+    {
+      "Source": "And rams' skins dyed red, and badgers' skins, and shittim wood,",
+      "Reference": "ରକ୍ତୀକୃତ ମଷଚେର୍ମ, ଶିଶୁକ ଚର୍ମ ଓ ଶିଟୀମ୍ କାଷ୍ଠ।",
+      "Greedy Output": "ସେମାନଙ୍କୁ ବିରାରାରେ ବିଶ୍ୟାନ୍ତୁରୀଙ୍କୁ ବାନ୍ତୁ",
+      "Beam Search (k=4)": "ସେମାନଙ୍କ ପାଇଁ ପ୍ରତିସ୍ତାରୀଙ୍କ ବ୍ୟାନ୍ତ୍ତୁ"
+    },
+    {
+      "Source": "But how is it even possible?",
+      "Reference": "ହେଲେ ତା’ କେମିତି ସମ୍ଭବ !",
+      "Greedy Output": "କିନ୍ତୁ କିଛି କିଛି କି କିଛି କି କି କିଛି କି କି କିଛି କି କି କି କିଛି କି କି କି କିଛି କି କି କିଛି କି କି କି କିଛି କି କି କିଛି କି କି କିଛି କି କି କ",
+      "Beam Search (k=4)": "କିନ୍ତୁ କିଛି କି କେହାକୁ କେ ?"
+    },
+    {
+      "Source": "Former minister bereaved",
+      "Reference": "ପରଲୋକରେ ପୂର୍ବତନ ମନ୍ତ୍ରୀ ଚୈତନ୍ୟ ମାଝୀ",
+      "Greedy Output": "ସେହିପରି ସେମାରେ ପ୍ବତନ ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ",
+      "Beam Search (k=4)": "ପ୍ରଧାନମନ୍ତ୍ରୀଙ୍କ ପୂର୍ବତନ ମୁଖ୍ୟମନ୍ତୀ"
+    },
+    {
+      "Source": "The residents of the locality are in a state of panic after the incident.",
+      "Reference": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଲୋକେ ଉତ୍ତେଜନା ପ୍ରକାଶ କରିଛନ୍ତି।",
+      "Greedy Output": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ତାନାନେ ପ୍ରକାରୀଙ୍କୁ ଗ୍ୟାରେ ପହଞ୍ଚିଛି।",
+      "Beam Search (k=4)": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ଥିତ୍ରେ ଏହି ମାମଲାରୁ ଘଟିଛି ।"
+    },
+    {
+      "Source": "I wanted to earn more.",
+      "Reference": "ମୋ ଅଧିକ ପାଇବାର ଥିଲା ।",
+      "Greedy Output": "ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମ",
+      "Beam Search (k=4)": "ସେମାନଙ୍କୁ ମିଳିଛି ।"
+    }
+  ],
+  "techniques": [
+    "Pre-LayerNorm Residuals",
+    "Embedding & Output Weight Tying",
+    "Cosine Annealing Schedule with Warmup",
+    "Gradient Accumulation (Effective Batch 256)",
+    "Stochastic Checkpoint Averaging (Top 3)",
+    "Beam Search (Width 4, Alpha 0.6)"
+  ]
+}

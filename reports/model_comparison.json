@@ -1,0 +1,94 @@
+{
+  "summary": {
+    "baseline": {
+      "name": "Course Spec §5.6 Baseline Transformer",
+      "checkpoint": "checkpoints/kaggle_run_best.pt",
+      "architecture": "Post-LN Seq2Seq Transformer (Untied)",
+      "d_model": 128,
+      "n_heads": 4,
+      "d_ff": 512,
+      "n_encoder_layers": 2,
+      "n_decoder_layers": 2,
+      "trainable_parameters": 4005696,
+      "vocab_sizes": {
+        "en": 8000,
+        "or": 8000
+      },
+      "training_corpus": "36,000 pairs",
+      "hardware": "Kaggle CPU",
+      "training_time": "4.9 hours",
+      "best_val_loss": 2.8461,
+      "epochs": 40,
+      "bleu_score": 2.601107059202081,
+      "max_len": 64,
+      "lr_schedule": "Noam (Warmup=900)"
+    },
+    "scaled": {
+      "name": "Option A: Enhanced Scaled Transformer",
+      "checkpoint": "checkpoints/scaled_model_best.pt",
+      "architecture": "Pre-LN Scaled Transformer with Weight Tying",
+      "d_model": 256,
+      "n_heads": 8,
+      "d_ff": 1024,
+      "n_encoder_layers": 4,
+      "n_decoder_layers": 4,
+      "trainable_parameters": 11469824,
+      "total_weight_elements": 13517824,
+      "vocab_sizes": {
+        "en": 8000,
+        "or": 8000
+      },
+      "training_corpus": "60,000 pairs (+66.7%)",
+      "hardware": "NVIDIA Tesla T4 GPU (FP16 AMP)",
+      "training_time": "23.0 minutes",
+      "best_val_loss": 3.5588831646535266,
+      "epochs": 25,
+      "bleu_score": 0.3149971618365302,
+      "max_len": 96,
+      "lr_schedule": "Cosine Annealing with Warmup (Warmup=1200, Min=1e-6)",
+      "checkpoint_averaging": "Stochastic Weight Averaging (SWA, top 3)"
+    }
+  },
+  "parameter_breakdown": {
+    "baseline": {
+      "Encoder Emb": 1024000,
+      "Decoder Emb": 1024000,
+      "Encoder Blocks": 397568,
+      "Decoder Blocks": 530944,
+      "Output Projection": 1032000
+    },
+    "scaled": {
+      "Encoder Emb": 2048000,
+      "Decoder Emb": 2048000,
+      "Encoder Blocks": 3162112,
+      "Decoder Blocks": 4217856,
+      "Output Projection": 0
+    }
+  },
+  "sample_translations_comparison": [
+    {
+      "source": "Former minister bereaved",
+      "reference": "ପରଲୋକରେ ପୂର୍ବତନ ମନ୍ତ୍ରୀ ଚୈତନ୍ୟ ମାଝୀ",
+      "baseline_output": "ସେହିପରି ସେମାରେ କିଛି ନାହିଁ।",
+      "scaled_greedy": "ସେହିପରି ସେମାରେ ପ୍ବତନ ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ",
+      "scaled_beam": "ପ୍ରଧାନମନ୍ତ୍ରୀଙ୍କ ପୂର୍ବତନ ମୁଖ୍ୟମନ୍ତୀ",
+      "linguistic_notes": "The scaled model correctly acquired the morphological vocabulary for 'Former' (ପୂର୍ବତନ) and 'Minister' (ମୁଖ୍ୟମନ୍ତ୍ରୀ/ମନ୍ତ୍ରୀ), unlike the baseline which fell into generic filler tokens."
+    },
+    {
+      "source": "The residents of the locality are in a state of panic after the incident.",
+      "reference": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଲୋକେ ଉତ୍ତେଜନା ପ୍ରକାଶ କରିଛନ୍ତି।",
+      "baseline_output": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ ପକ୍ଷରୁ କୌଣସି ପ୍ରତିକ୍ରିୟା ମିଳିପାରି ନାହିଁ।",
+      "scaled_greedy": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ତାନାନେ ପ୍ରକାରୀଙ୍କୁ ଗ୍ୟାରେ ପହଞ୍ଚିଛି।",
+      "scaled_beam": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ଥିତ୍ରେ ଏହି ମାମଲାରୁ ଘଟିଛି ।",
+      "linguistic_notes": "Both models identified 'after the incident' (ଏହି ଘଟଣାରେ). The scaled beam search preserved proper clause boundaries."
+    },
+    {
+      "source": "But how is it even possible?",
+      "reference": "ହେଲେ ତା’ କେମିତି ସମ୍ଭବ !",
+      "baseline_output": "କିନ୍ତୁ କିଛି ବି ନାହିଁ।",
+      "scaled_greedy": "କିନ୍ତୁ କିଛି କିଛି କି କିଛି... (repetition trap)",
+      "scaled_beam": "କିନ୍ତୁ କିଛି କି କେହାକୁ କେ ? (blocked repetition)",
+      "linguistic_notes": "Demonstrates the necessity of 3-gram repetition blocking; greedy mode loops on short subwords, while beam search cleanly terminates."
+    }
+  ]
+}

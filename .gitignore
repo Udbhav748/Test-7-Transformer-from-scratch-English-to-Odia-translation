@@ -9,3 +9,7 @@ reports/figures/
 *.log
 .ipynb_checkpoints/
 kaggle_push/run_output/
+kaggle_push/run_output_scaled/
+kaggle_push/pulled/
+kaggle_push/error_log/
+scratch/

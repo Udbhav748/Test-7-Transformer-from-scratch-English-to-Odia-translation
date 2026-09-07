@@ -1,0 +1,13 @@
+{
+  "id": "udbhav748/scaled-en-or-transformer",
+  "title": "Scaled En Or Transformer",
+  "code_file": "scaled_en_or_transformer.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": []
+}
