@@ -1,15 +1,14 @@
 {
-  "id": "udbhav748/test-7-en-or-transformer",
-  "title": "Test 7 En Or Transformer",
-  "code_file": "en_or_transformer.ipynb",
+  "id": "udbhav748/test-7-scaled-transformer",
+  "title": "Test 7 Scaled Transformer",
+  "code_file": "scaled_en_or_transformer.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": "true",
   "enable_gpu": "true",
   "enable_internet": "true",
-  "dataset_sources": [
-    "udbhav748/test-7-en-or-processed"
-  ],
+  "accelerator": "NvidiaTeslaT4",
+  "dataset_sources": [],
   "competition_sources": [],
   "kernel_sources": []
 }

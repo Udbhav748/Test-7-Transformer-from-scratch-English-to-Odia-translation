@@ -1,313 +1,595 @@
-"""Dashboard for the from-scratch English->Odia Transformer (assignment section 5.6).
+"""English to Odia Neural Machine Translation Platform
 
-Reads pre-computed artifacts from project_data.py and renders them as a static
-report -- no training or inference happens here.
+Enterprise-grade research and demonstration dashboard for from-scratch
+Sequence-to-Sequence Transformers (Baseline and Scaled GPU architectures).
 """
+
+import math
+import time
+from pathlib import Path
+from typing import Optional, Tuple
 
 import altair as alt
 import pandas as pd
 import streamlit as st
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from tokenizers import Tokenizer
 
+# -----------------------------------------------------------------------------
+# Configuration & Theme
+# -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="English to Odia Transformer",
+    page_title="English -> Odia Neural Machine Translation",
+    page_icon="https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f310.png",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-try:
-    from project_data import (
-        HYPERPARAMS,
-        DATA_STATS,
-        TOKENIZER_STATS,
-        TRAINING_HISTORY,
-        EVAL_RESULTS,
-        EDA_RESULTS,
-        ATTENTION_EXAMPLES,
-        LENGTH_QUALITY_RESULTS,
-        REQUIREMENTS_COVERAGE,
-    )
+ROOT_DIR = Path(__file__).resolve().parent
 
-    DATA_LOAD_ERROR = None
-except Exception as exc:  # project_data.py not present or not importable yet
-    HYPERPARAMS, DATA_STATS, TOKENIZER_STATS = {}, {}, {}
-    TRAINING_HISTORY, EVAL_RESULTS, EDA_RESULTS = [], {}, {}
-    ATTENTION_EXAMPLES, LENGTH_QUALITY_RESULTS, REQUIREMENTS_COVERAGE = [], {}, {}
-    DATA_LOAD_ERROR = str(exc)
+# Color Palette (Linear / Stripe / Vercel Enterprise aesthetic)
+PRIMARY = "#2563EB"       # Classic Sapphire Blue
+SLATE_900 = "#0F172A"     # Deepest slate
+SLATE_800 = "#1E293B"     # Card slate
+SLATE_700 = "#334155"     # Border slate
+TEXT_MAIN = "#0F172A"     # Primary text
+TEXT_MUTED = "#64748B"    # Secondary text
+TEXT_LIGHT = "#94A3B8"    # Subtle labels
+BORDER_SUBTLE = "#E2E8F0" # Crisp hairline borders
+BG_SURFACE = "#FFFFFF"    # Pure white surface
+BG_PAGE = "#F8FAFC"       # Cool soft gray canvas
+SUCCESS = "#059669"       # Emerald status
 
-TEAL = "#0D9488"
-AMBER = "#B45309"
-CRITICAL = "#DC2626"
-TEXT_MAIN = "#1E293B"
-TEXT_MUTED = "#64748B"
-
-
-def g(d, key, default="n/a"):
-    """Defensive dict lookup tolerant of casing drift in the source module."""
-    if not isinstance(d, dict):
-        return default
-    for variant in (key, key.lower(), key.upper()):
-        if variant in d:
-            return d[variant]
-    return default
-
-
-def fmt_num(value):
-    if isinstance(value, bool):
-        return str(value)
-    if isinstance(value, int):
-        return f"{value:,}"
-    if isinstance(value, float):
-        if value.is_integer():
-            return f"{int(value):,}"
-        return f"{value:,.2f}"
-    return str(value)
-
-
-CSS = """
+PRO_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Oriya:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Oriya:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-html, body, [class*="st-"], .stApp, .stMarkdown, .stDataFrame, .stMetric,
-.stTabs, button, input, textarea, [data-testid="stMetricValue"],
-[data-testid="stMetricLabel"] {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+html, body, [class*="st-"], .stApp {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
 }
 
 .stApp {
-    background-color: #FDFCFB;
+    background-color: #F8FAFC;
+    color: #0F172A;
 }
 
 .block-container {
-    padding-top: 2rem;
+    padding-top: 1.25rem;
     padding-bottom: 3rem;
-    max-width: 1200px;
+    max-width: 1280px;
 }
 
-.odia-text {
-    font-family: 'Noto Sans Oriya', 'Inter', sans-serif !important;
-    font-size: 1.05rem;
-    line-height: 1.9;
-}
-
-.header-banner {
-    background: linear-gradient(120deg, #0D9488 0%, #14B8A6 55%, #B45309 130%);
-    border-radius: 18px;
-    padding: 2.4rem 2.8rem;
-    margin-bottom: 1.8rem;
-    box-shadow: 0 8px 24px rgba(13, 148, 136, 0.18);
-}
-.header-banner h1 {
-    color: #FFFFFF;
-    font-size: 2.1rem;
-    font-weight: 800;
-    margin: 0 0 0.6rem 0;
-    letter-spacing: -0.01em;
-}
-.header-banner p {
-    color: #F0FDFA;
-    font-size: 1.02rem;
-    line-height: 1.6;
-    margin: 0;
-    max-width: 900px;
-}
-
-.section-heading {
-    font-size: 1.35rem;
-    font-weight: 700;
-    color: #1E293B;
-    margin: 0.4rem 0 1rem 0;
-    padding-bottom: 0.5rem;
-    border-bottom: 3px solid #0D9488;
-    display: inline-block;
-}
-
-.card-note {
-    background-color: #F2F7F6;
-    border: 1px solid #E1E9E7;
-    border-left: 4px solid #0D9488;
-    border-radius: 10px;
-    padding: 1rem 1.3rem;
-    color: #1E293B;
-    font-size: 0.95rem;
-    line-height: 1.65;
-    margin: 0.8rem 0 1.4rem 0;
-}
-
-[data-testid="stMetricValue"] {
-    color: #0D9488;
-    font-weight: 800;
-}
-[data-testid="stMetricLabel"] {
-    color: #64748B;
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.78rem;
-    letter-spacing: 0.03em;
-}
-
-div[data-testid="stVerticalBlockBorderWrapper"] {
-    background-color: #FFFFFF;
-    border-radius: 12px;
-}
-
-.arch-flow {
+/* Navbar / App Header */
+.app-navbar {
     display: flex;
     align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
+    justify-content: space-between;
+    background: #0F172A;
+    border: 1px solid #1E293B;
+    border-radius: 12px;
+    padding: 1.1rem 1.6rem;
+    margin-bottom: 1.4rem;
+    box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.12);
+}
+.app-title-group h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #FFFFFF;
+    margin: 0;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
     gap: 0.6rem;
-    padding: 1.6rem 0.5rem;
 }
-.arch-box {
-    background-color: #FFFFFF;
-    border: 2px solid #0D9488;
-    border-radius: 12px;
-    padding: 0.85rem 1.1rem;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: #1E293B;
-    text-align: center;
-    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.10);
-    min-width: 130px;
-}
-.arch-box.accent {
-    border-color: #B45309;
-    background-color: #FFFBF3;
-}
-.arch-arrow {
-    color: #0D9488;
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-
-.result-table {
-    width: 100%;
-    border-collapse: collapse;
-    background-color: #FFFFFF;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-}
-.result-table th {
-    background-color: #0D9488;
-    color: #FFFFFF;
-    text-align: left;
-    padding: 0.75rem 1rem;
+.app-title-group p {
     font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    color: #94A3B8;
+    margin: 0.2rem 0 0 0;
+    font-weight: 400;
 }
-.result-table td {
-    padding: 0.9rem 1rem;
-    font-size: 0.92rem;
-    color: #1E293B;
-    vertical-align: top;
-    border-bottom: 1px solid #EDF2F1;
+.nav-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
 }
-.result-table tr:nth-child(even) td {
-    background-color: #F8FBFA;
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.28);
+    color: #34D399;
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    letter-spacing: 0.02em;
 }
-.result-table tr.long-row td {
-    background-color: #FEF2F2;
-    border-left: 4px solid #DC2626;
+.status-dot {
+    width: 6px;
+    height: 6px;
+    background: #10B981;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #10B981;
 }
-.long-badge {
-    display: inline-block;
-    background-color: #DC2626;
-    color: #FFFFFF;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    border-radius: 999px;
-    padding: 0.15rem 0.6rem;
-    margin-bottom: 0.4rem;
+.tag-badge {
+    background: #1E293B;
+    border: 1px solid #334155;
+    color: #E2E8F0;
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
 }
 
-.status-badge {
-    display: inline-block;
-    font-size: 0.68rem;
+/* Tabs Styling */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 1.8rem;
+    border-bottom: 1px solid #E2E8F0;
+    padding-bottom: 0;
+    background: transparent;
+}
+.stTabs [data-baseweb="tab"] {
+    font-size: 0.92rem;
+    font-weight: 600;
+    padding: 0.75rem 0.2rem;
+    color: #64748B;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    color: #0F172A;
+}
+.stTabs [aria-selected="true"] {
+    color: #2563EB !important;
+    border-bottom: 2px solid #2563EB !important;
+}
+
+/* Workbench Cards */
+.workbench-panel {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+    overflow: hidden;
+    height: 100%;
+}
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.1rem;
+    border-bottom: 1px solid #F1F5F9;
+    background: #F8FAFC;
+}
+.panel-title {
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #475569;
+}
+.panel-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: #64748B;
+}
+
+/* Translation Result Containers */
+.target-box {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 1.25rem 1.4rem;
+    margin-bottom: 0.9rem;
+    transition: border-color 0.15s ease;
+}
+.target-box:hover {
+    border-color: #CBD5E1;
+}
+.target-box.highlight {
+    border-left: 4px solid #2563EB;
+}
+.target-box.scaled-box {
+    border-left: 4px solid #4F46E5;
+}
+.target-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6rem;
+}
+.model-pill {
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    border-radius: 999px;
-    padding: 0.2rem 0.7rem;
-    white-space: nowrap;
+    padding: 0.18rem 0.55rem;
+    border-radius: 4px;
 }
-.status-met {
-    background-color: #0D9488;
-    color: #FFFFFF;
+.model-pill.baseline {
+    background: #EFF6FF;
+    color: #1D4ED8;
+    border: 1px solid #BFDBFE;
 }
-.status-exceeded {
-    background-color: #B45309;
-    color: #FFFFFF;
+.model-pill.scaled {
+    background: #EEF2FF;
+    color: #4338CA;
+    border: 1px solid #C7D2FE;
 }
-.status-not-met {
-    background-color: #DC2626;
-    color: #FFFFFF;
+.odia-text {
+    font-family: 'Noto Sans Oriya', sans-serif !important;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #0F172A;
+    line-height: 1.85;
+    margin: 0;
+}
+.meta-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid #F1F5F9;
+}
+.meta-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: #475569;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    padding: 0.18rem 0.5rem;
+    border-radius: 4px;
 }
 
-.spec-quote {
-    background-color: #FFFBF3;
-    border-left: 4px solid #B45309;
-    border-radius: 8px;
-    padding: 0.75rem 1.1rem;
-    color: #1E293B;
+/* Prompt Pills */
+.prompt-chips-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0.65rem 0 0.85rem 0;
+}
+.prompt-chip {
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: #334155;
+    background: #F1F5F9;
+    border: 1px solid #E2E8F0;
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.prompt-chip:hover {
+    background: #E2E8F0;
+    color: #0F172A;
+}
+
+/* Section Headings */
+.view-heading {
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: #0F172A;
+    letter-spacing: -0.01em;
+    margin: 1.4rem 0 0.75rem 0;
+}
+
+/* KPI Cards */
+.kpi-container {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 1px 2px 0 rgba(0,0,0,0.03);
+}
+.kpi-title {
+    font-size: 0.74rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748B;
+    margin-bottom: 0.35rem;
+}
+.kpi-value {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #0F172A;
+    line-height: 1.1;
+    font-family: 'JetBrains Mono', 'Inter', monospace;
+}
+.kpi-subtext {
+    font-size: 0.76rem;
+    color: #059669;
+    font-weight: 600;
+    margin-top: 0.35rem;
+}
+.kpi-subtext.neutral {
+    color: #64748B;
+    font-weight: 500;
+}
+
+/* Narrative callout */
+.narrative-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 1.1rem 1.4rem;
     font-size: 0.9rem;
-    font-style: italic;
-    line-height: 1.6;
-    margin: 0.6rem 0 1rem 0;
+    line-height: 1.65;
+    color: #334155;
+    margin-bottom: 1.25rem;
 }
 
-.evidence-where {
+/* Clean Form Controls */
+div[data-baseweb="textarea"] {
+    border-radius: 8px !important;
+    border-color: #CBD5E1 !important;
+}
+div[data-baseweb="textarea"]:focus-within {
+    border-color: #2563EB !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+}
+
+/* Control Toolbar Card */
+.control-toolbar {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 1rem 1.3rem 0.8rem 1.3rem;
+    margin-bottom: 1.1rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03);
+}
+.toolbar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.65rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid #F1F5F9;
+}
+.toolbar-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+}
+.toolbar-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
     color: #64748B;
-    font-size: 0.8rem;
-    font-family: 'Inter', monospace;
 }
 
-.bleu-signature {
-    color: #64748B;
-    font-size: 0.85rem;
-    font-family: 'Inter', monospace;
-    margin-top: -0.6rem;
+/* Attention Card full width */
+.attention-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 1.25rem 1.4rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+    margin-top: 1.4rem;
+}
+.attention-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #F1F5F9;
 }
 
-.footer-note {
-    color: #94A3B8;
-    font-size: 0.82rem;
-    text-align: center;
-    margin-top: 2.5rem;
+div[data-baseweb="select"] > div {
+    border-radius: 8px !important;
+    border-color: #CBD5E1 !important;
 }
 </style>
 """
+st.markdown(PRO_CSS, unsafe_allow_html=True)
 
-st.markdown(CSS, unsafe_allow_html=True)
-
-st.markdown(
-    """
-    <div class="header-banner">
-        <h1>From-Scratch Transformer: English to Odia Translation</h1>
-        <p>
-            An encoder-decoder Transformer implemented from first principles per
-            assignment section 5.6, deliberately kept small to fit limited compute
-            budgets, and trained on a filtered subset of the Samanantar English-Odia
-            parallel corpus. This dashboard reports the architecture, data pipeline,
-            training curves, and held-out evaluation of the final checkpoint.
-        </p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-if DATA_LOAD_ERROR:
-    st.error(
-        "project_data.py could not be imported, so this dashboard has no data to "
-        f"show yet. Underlying error: {DATA_LOAD_ERROR}"
+# -----------------------------------------------------------------------------
+# Data Import
+# -----------------------------------------------------------------------------
+try:
+    from project_data import (
+        ATTENTION_EXAMPLES,
+        DATA_STATS,
+        EDA_RESULTS,
+        EVAL_RESULTS,
+        HYPERPARAMS,
+        LENGTH_QUALITY_RESULTS,
+        MODEL_COMPARISON,
+        SCALED_EVAL_RESULTS,
+        SCALED_HYPERPARAMS,
+        SCALED_TRAINING_HISTORY,
+        TOKENIZER_STATS,
+        TRAINING_HISTORY,
     )
-    st.stop()
+    DATA_LOADED = True
+except Exception:
+    DATA_LOADED = False
+    HYPERPARAMS, DATA_STATS, TOKENIZER_STATS = {}, {}, {}
+    TRAINING_HISTORY, EVAL_RESULTS, EDA_RESULTS = [], {}, {}
+    SCALED_TRAINING_HISTORY, SCALED_EVAL_RESULTS, MODEL_COMPARISON = [], {}, {}
+    LENGTH_QUALITY_RESULTS = {}
 
+# -----------------------------------------------------------------------------
+# Scaled Transformer Definition (Pre-LN + Weight Tying)
+# -----------------------------------------------------------------------------
+class ScaledPositionalEncoding(nn.Module):
+    def __init__(self, d_model: int = 256, dropout: float = 0.1, max_len: int = 128):
+        super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float32) * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        self.register_buffer("pe", pe, persistent=False)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        seq_len = x.size(1)
+        if seq_len > self.pe.size(0):
+            device = x.device
+            needed = seq_len + 16
+            pe = torch.zeros(needed, self.pe.size(1), device=device)
+            position = torch.arange(0, needed, dtype=torch.float32, device=device).unsqueeze(1)
+            div_term = torch.exp(
+                torch.arange(0, self.pe.size(1), 2, dtype=torch.float32, device=device)
+                * (-math.log(10000.0) / self.pe.size(1))
+            )
+            pe[:, 0::2] = torch.sin(position * div_term)
+            pe[:, 1::2] = torch.cos(position * div_term)
+            self.pe = pe
+        return self.dropout(x + self.pe[:seq_len, :].unsqueeze(0))
+
+class ScaledEmbeddings(nn.Module):
+    def __init__(self, vocab_size: int, d_model: int = 256, dropout: float = 0.1):
+        super().__init__()
+        self.token_embedding = nn.Embedding(vocab_size, d_model)
+        self.pos_encoding = ScaledPositionalEncoding(d_model, dropout)
+        self.scale = math.sqrt(d_model)
+
+    def forward(self, ids: torch.Tensor) -> torch.Tensor:
+        return self.pos_encoding(self.token_embedding(ids) * self.scale)
+
+class ScaledMultiHeadAttention(nn.Module):
+    def __init__(self, d_model: int = 256, n_heads: int = 8):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.head_dim = d_model // n_heads
+        self.q_proj = nn.Linear(d_model, d_model)
+        self.k_proj = nn.Linear(d_model, d_model)
+        self.v_proj = nn.Linear(d_model, d_model)
+        self.out_proj = nn.Linear(d_model, d_model)
+        self.last_attn_weights = None
+
+    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        B, Lq, _ = q.shape
+        _, Lk, _ = k.shape
+        q_s = self.q_proj(q).view(B, Lq, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
+        k_s = self.k_proj(k).view(B, Lk, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
+        v_s = self.v_proj(v).view(B, Lk, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
+
+        scores = torch.matmul(q_s, k_s.transpose(-2, -1)) / math.sqrt(self.head_dim)
+        if mask is not None:
+            scores = scores.masked_fill(~mask, -1e4)
+
+        attn = torch.softmax(scores, dim=-1)
+        self.last_attn_weights = attn.detach()
+        out = torch.matmul(attn, v_s).permute(0, 2, 1, 3).contiguous().view(B, Lq, self.d_model)
+        return self.out_proj(out)
+
+class ScaledFeedForward(nn.Module):
+    def __init__(self, d_model: int = 256, d_ff: int = 1024, dropout: float = 0.1):
+        super().__init__()
+        self.linear1 = nn.Linear(d_model, d_ff)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(d_ff, d_model)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.linear2(self.dropout(self.relu(self.linear1(x))))
+
+class ScaledPreLNEncoderBlock(nn.Module):
+    def __init__(self, d_model: int = 256, n_heads: int = 8, d_ff: int = 1024, dropout: float = 0.1):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(d_model)
+        self.self_attn = ScaledMultiHeadAttention(d_model, n_heads)
+        self.dropout1 = nn.Dropout(dropout)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.ffn = ScaledFeedForward(d_model, d_ff, dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor, src_mask: torch.Tensor) -> torch.Tensor:
+        norm_x = self.norm1(x)
+        x = x + self.dropout1(self.self_attn(norm_x, norm_x, norm_x, src_mask))
+        norm_x = self.norm2(x)
+        x = x + self.dropout2(self.ffn(norm_x))
+        return x
+
+class ScaledPreLNDecoderBlock(nn.Module):
+    def __init__(self, d_model: int = 256, n_heads: int = 8, d_ff: int = 1024, dropout: float = 0.1):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(d_model)
+        self.self_attn = ScaledMultiHeadAttention(d_model, n_heads)
+        self.dropout1 = nn.Dropout(dropout)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.cross_attn = ScaledMultiHeadAttention(d_model, n_heads)
+        self.dropout2 = nn.Dropout(dropout)
+        self.norm3 = nn.LayerNorm(d_model)
+        self.ffn = ScaledFeedForward(d_model, d_ff, dropout)
+        self.dropout3 = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor, enc_out: torch.Tensor, tgt_mask: torch.Tensor, src_mask: torch.Tensor) -> torch.Tensor:
+        norm_x = self.norm1(x)
+        x = x + self.dropout1(self.self_attn(norm_x, norm_x, norm_x, tgt_mask))
+        norm_x = self.norm2(x)
+        x = x + self.dropout2(self.cross_attn(norm_x, enc_out, enc_out, src_mask))
+        norm_x = self.norm3(x)
+        x = x + self.dropout3(self.ffn(norm_x))
+        return x
+
+class EnhancedScaledTransformer(nn.Module):
+    def __init__(
+        self,
+        en_vocab_size: int = 8000,
+        or_vocab_size: int = 8000,
+        d_model: int = 256,
+        n_heads: int = 8,
+        d_ff: int = 1024,
+        n_encoder_layers: int = 4,
+        n_decoder_layers: int = 4,
+        dropout: float = 0.1,
+        pad_id: int = 0,
+        tie_weights: bool = True,
+    ):
+        super().__init__()
+        self.pad_id = pad_id
+        self.encoder_emb = ScaledEmbeddings(en_vocab_size, d_model, dropout)
+        self.decoder_emb = ScaledEmbeddings(or_vocab_size, d_model, dropout)
+        self.encoder_blocks = nn.ModuleList([ScaledPreLNEncoderBlock(d_model, n_heads, d_ff, dropout) for _ in range(n_encoder_layers)])
+        self.encoder_final_norm = nn.LayerNorm(d_model)
+        self.decoder_blocks = nn.ModuleList([ScaledPreLNDecoderBlock(d_model, n_heads, d_ff, dropout) for _ in range(n_decoder_layers)])
+        self.decoder_final_norm = nn.LayerNorm(d_model)
+        self.output_proj = nn.Linear(d_model, or_vocab_size, bias=False)
+
+        if tie_weights:
+            self.output_proj.weight = self.decoder_emb.token_embedding.weight
+
+    def make_src_mask(self, src_ids: torch.Tensor) -> torch.Tensor:
+        return (src_ids != self.pad_id).unsqueeze(1).unsqueeze(1)
+
+    def make_tgt_mask(self, tgt_ids: torch.Tensor) -> torch.Tensor:
+        T = tgt_ids.size(1)
+        causal = torch.tril(torch.ones(T, T, dtype=torch.bool, device=tgt_ids.device))
+        pad = (tgt_ids != self.pad_id).unsqueeze(1).unsqueeze(1)
+        return causal.unsqueeze(0).unsqueeze(0) & pad
+
+    def forward(self, src_ids: torch.Tensor, tgt_ids: torch.Tensor) -> torch.Tensor:
+        src_mask = self.make_src_mask(src_ids)
+        tgt_mask = self.make_tgt_mask(tgt_ids)
+        x = self.encoder_emb(src_ids)
+        for b in self.encoder_blocks:
+            x = b(x, src_mask)
+        x = self.encoder_final_norm(x)
+
+        y = self.decoder_emb(tgt_ids)
+        for b in self.decoder_blocks:
+            y = b(y, x, tgt_mask, src_mask)
+        y = self.decoder_final_norm(y)
+        return self.output_proj(y)
+
+# -----------------------------------------------------------------------------
+# Cached Loaders & Inference
+# -----------------------------------------------------------------------------
 @st.cache_resource(show_spinner=False)
-def load_translation_model():
+def load_baseline_components():
     from configs.base import CHECKPOINT_DIR
     from src.training.train import build_model
     from src.training.checkpoint import load_checkpoint
@@ -317,1312 +599,794 @@ def load_translation_model():
     model = build_model()
     load_checkpoint(CHECKPOINT_DIR / "kaggle_run_best.pt", model)
     model.eval()
-    return model, load_tokenizer(EN_TOKENIZER_PATH), load_tokenizer(OR_TOKENIZER_PATH)
+    en_tok = load_tokenizer(EN_TOKENIZER_PATH)
+    or_tok = load_tokenizer(OR_TOKENIZER_PATH)
+    return model, en_tok, or_tok
 
+@st.cache_resource(show_spinner=False)
+def load_scaled_components():
+    ckpt_path = ROOT_DIR / "checkpoints" / "scaled_model_best.pt"
+    en_tok_path = ROOT_DIR / "tokenizers" / "scaled_en_bpe.json"
+    or_tok_path = ROOT_DIR / "tokenizers" / "scaled_or_bpe.json"
 
-(
-    tab_overview,
-    tab_requirements,
-    tab_arch,
-    tab_data,
-    tab_eda,
-    tab_training,
-    tab_results,
-    tab_translate,
-    tab_techniques,
-) = st.tabs(
+    model = EnhancedScaledTransformer()
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    state = ckpt.get("model_state", ckpt)
+    model.load_state_dict(state)
+    model.eval()
+
+    en_tok = Tokenizer.from_file(str(en_tok_path))
+    or_tok = Tokenizer.from_file(str(or_tok_path))
+    return model, en_tok, or_tok
+
+def run_greedy_decode(model, src_tensor, max_len=64, no_repeat_size=3):
+    from configs.base import EOS_ID, SOS_ID
+    from src.inference.repetition import banned_ngram_tokens
+
+    tgt_ids = torch.tensor([[SOS_ID]], dtype=torch.long, device=src_tensor.device)
+    for _ in range(max_len - 1):
+        with torch.no_grad():
+            logits = model(src_tensor, tgt_ids)
+        next_logits = logits[:, -1, :].clone()
+
+        if no_repeat_size > 0:
+            banned = banned_ngram_tokens(tgt_ids[0].tolist(), no_repeat_size)
+            for token_id in banned:
+                next_logits[:, token_id] = float("-inf")
+
+        next_id = next_logits.argmax(dim=-1, keepdim=True)
+        tgt_ids = torch.cat([tgt_ids, next_id], dim=1)
+        if next_id.item() == EOS_ID:
+            break
+    return tgt_ids[0].tolist()
+
+def run_beam_search(model, src_tensor, beam_width=4, length_penalty=0.6, max_len=64, no_repeat_size=3):
+    from configs.base import EOS_ID, SOS_ID
+    from src.inference.repetition import banned_ngram_tokens
+
+    device = src_tensor.device
+    beams = [([SOS_ID], 0.0)]
+    completed = []
+
+    for _ in range(max_len - 1):
+        candidates = []
+        for seq, cum_logprob in beams:
+            if seq[-1] == EOS_ID:
+                completed.append((seq, cum_logprob))
+                continue
+
+            tgt_ids = torch.tensor([seq], dtype=torch.long, device=device)
+            with torch.no_grad():
+                logits = model(src_tensor, tgt_ids)
+            log_probs = F.log_softmax(logits[0, -1, :], dim=-1)
+
+            if no_repeat_size > 0:
+                banned = banned_ngram_tokens(seq, no_repeat_size)
+                for token_id in banned:
+                    log_probs[token_id] = float("-inf")
+
+            top_logprobs, top_ids = log_probs.topk(beam_width)
+            for logprob, token_id in zip(top_logprobs.tolist(), top_ids.tolist()):
+                candidates.append((seq + [token_id], cum_logprob + logprob))
+
+        if not candidates:
+            break
+
+        candidates.sort(key=lambda c: c[1] / (len(c[0]) ** length_penalty), reverse=True)
+        beams = candidates[:beam_width]
+
+    if not completed:
+        completed = beams
+    completed.sort(key=lambda c: c[1] / (len(c[0]) ** length_penalty), reverse=True)
+    return completed[0][0]
+
+def run_attention_decode(model, src_tensor, is_scaled=False, max_len=64):
+    from configs.base import EOS_ID, SOS_ID
+    from src.inference.repetition import banned_ngram_tokens
+
+    device = src_tensor.device
+    tgt_ids = torch.tensor([[SOS_ID]], dtype=torch.long, device=device)
+    attention_rows = []
+
+    for _ in range(max_len - 1):
+        with torch.no_grad():
+            logits = model(src_tensor, tgt_ids)
+        next_logits = logits[:, -1, :].clone()
+
+        banned = banned_ngram_tokens(tgt_ids[0].tolist(), 3)
+        for token_id in banned:
+            next_logits[:, token_id] = float("-inf")
+
+        next_id = next_logits.argmax(dim=-1, keepdim=True)
+        tgt_ids = torch.cat([tgt_ids, next_id], dim=1)
+
+        if is_scaled:
+            cross_attn = model.decoder_blocks[-1].cross_attn.last_attn_weights
+        else:
+            cross_attn = model.decoder.layers[-1].cross_attn.last_attn_weights
+
+        if cross_attn is not None:
+            row = cross_attn.mean(dim=1)[0, -1, :]
+            attention_rows.append(row.tolist())
+
+        if next_id.item() == EOS_ID:
+            break
+
+    return tgt_ids[0].tolist(), attention_rows
+
+# -----------------------------------------------------------------------------
+# Header
+# -----------------------------------------------------------------------------
+st.markdown(
+    """
+    <div class="app-navbar">
+        <div class="app-title-group">
+            <h1>English &rarr; Odia Neural Machine Translation</h1>
+            <p>From-scratch PyTorch Sequence-to-Sequence Transformer research platform &bull; AI4Bharat Samanantar Corpus</p>
+        </div>
+        <div class="nav-badges">
+            <span class="status-indicator"><span class="status-dot"></span>Models Ready</span>
+            <span class="tag-badge">Baseline: 4.0M</span>
+            <span class="tag-badge">Scaled: 11.5M</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# -----------------------------------------------------------------------------
+# Top-Level Tabs
+# -----------------------------------------------------------------------------
+tab_translate, tab_comparison, tab_benchmarks, tab_arch = st.tabs(
     [
-        "Overview",
-        "Requirements",
-        "Architecture",
-        "Data and Tokenization",
-        "EDA",
-        "Training",
-        "Results",
-        "Live Demo",
-        "NLP Techniques",
+        "Translator",
+        "Model Comparison",
+        "Training & Benchmarks",
+        "Architecture & Linguistics",
     ]
 )
 
-with tab_overview:
-    st.markdown('<div class="section-heading">Headline results</div>', unsafe_allow_html=True)
-
-    bleu = EVAL_RESULTS.get("bleu_score")
-    total_params = g(HYPERPARAMS, "total_params")
-    train_size = g(DATA_STATS, "train_size")
-    val_size = g(DATA_STATS, "val_size")
-    test_size = g(DATA_STATS, "test_size")
-    final_val_loss = TRAINING_HISTORY[-1].get("val_loss") if TRAINING_HISTORY else None
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        with st.container(border=True):
-            st.metric("BLEU score", f"{bleu:.2f}" if isinstance(bleu, (int, float)) else "n/a")
-    with c2:
-        with st.container(border=True):
-            st.metric("Total parameters", fmt_num(total_params))
-    with c3:
-        with st.container(border=True):
-            st.metric("Train examples", fmt_num(train_size))
-    with c4:
-        with st.container(border=True):
-            st.metric("Val / test examples", f"{fmt_num(val_size)} / {fmt_num(test_size)}")
-    with c5:
-        with st.container(border=True):
-            st.metric(
-                "Final val loss",
-                f"{final_val_loss:.3f}" if isinstance(final_val_loss, (int, float)) else "n/a",
-            )
-
-    epochs_run = len(TRAINING_HISTORY) if TRAINING_HISTORY else "n/a"
-    first_val = TRAINING_HISTORY[0].get("val_loss") if TRAINING_HISTORY else None
-    n_enc = g(HYPERPARAMS, "n_encoder_layers")
-    n_dec = g(HYPERPARAMS, "n_decoder_layers")
-    d_model = g(HYPERPARAMS, "d_model")
-    n_heads = g(HYPERPARAMS, "n_heads")
-
-    st.markdown(
-        f"""
-        <div class="card-note">
-            Every component of this system was written from first principles -- the attention
-            mechanism, positional encoding, encoder and decoder stacks, masking, training loop and
-            both decoding strategies -- with no pretrained weights and no high-level Transformer
-            library. The model is intentionally compact ({n_enc} encoder and {n_dec} decoder blocks,
-            d_model {d_model}, {n_heads} attention heads) because the brief requires it to fit a
-            class compute budget. Trained for {epochs_run} epochs, validation loss fell from
-            {f"{first_val:.3f}" if isinstance(first_val, (int, float)) else "n/a"} to
-            {f"{final_val_loss:.3f}" if isinstance(final_val_loss, (int, float)) else "n/a"}.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Where to find each deliverable</div>', unsafe_allow_html=True)
-
-    guide_rows = [
-        ("Requirements", "Every line of the assignment brief mapped to the artefact that satisfies it, with the file where it can be verified."),
-        ("Architecture", "The section 5.6 encoder-decoder structure, layer by layer, with the exact hyperparameters and parameter count."),
-        ("Data and Tokenization", "Corpus selection, Unicode normalisation, the two per-language subword tokenizers, and the length-filtering funnel."),
-        ("EDA", "Corpus analysis: length distributions, vocabulary richness, tokenizer coverage, and the English-Odia subword asymmetry."),
-        ("Training", "Loss curves, the optimiser and warmup schedule, and the causal-mask verification the brief specifically warns about."),
-        ("Results", "BLEU on the held-out test set, the five required sample translations, and a full-test-set analysis of how quality varies with sentence length."),
-        ("Live Demo", "Translate any English sentence with the trained model, compare greedy against beam search, and inspect the decoder's attention."),
-        ("NLP Techniques", "Reference table of every technique applied across preprocessing, tokenization, architecture, training, decoding and evaluation."),
-    ]
-    guide_html = ["<table class='result-table'><thead><tr><th style='width:22%'>Tab</th><th>What it shows</th></tr></thead><tbody>"]
-    for tab_name, desc in guide_rows:
-        guide_html.append(f"<tr><td><strong>{tab_name}</strong></td><td>{desc}</td></tr>")
-    guide_html.append("</tbody></table>")
-    st.markdown("".join(guide_html), unsafe_allow_html=True)
-
-with tab_requirements:
-    st.markdown('<div class="section-heading">Assignment requirements coverage</div>', unsafe_allow_html=True)
-
-    if not REQUIREMENTS_COVERAGE:
-        st.info("Requirements coverage data is not available.")
-    else:
-        summary = REQUIREMENTS_COVERAGE.get("summary", {})
-        groups = REQUIREMENTS_COVERAGE.get("groups", [])
-
-        s1, s2, s3, s4 = st.columns(4)
-        with s1:
-            with st.container(border=True):
-                st.metric("Requirements checked", fmt_num(summary.get("total_items", "n/a")))
-        with s2:
-            with st.container(border=True):
-                st.metric("Fully met", fmt_num(summary.get("met", "n/a")))
-        with s3:
-            with st.container(border=True):
-                st.metric("Exceeded", fmt_num(summary.get("exceeded", "n/a")))
-        with s4:
-            with st.container(border=True):
-                st.metric("Automated tests passing", fmt_num(summary.get("tests_passing", "n/a")))
-
-        not_met = summary.get("not_met", 0)
-        if isinstance(not_met, int) and not_met > 0:
-            st.warning(f"{not_met} requirement(s) are recorded as not met. See the detail below.")
-
-        st.markdown(
-            """
-            <div class="card-note">
-                Every row below maps one line of the assignment brief to the specific artefact that
-                satisfies it, naming the file where it can be verified. "Exceeded" marks the items
-                where the brief's optional or bonus work was completed, or where the verification
-                goes beyond what was asked.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        _badge_class = {
-            "met": "status-met",
-            "exceeded": "status-exceeded",
-            "not_met": "status-not-met",
-        }
-        _badge_label = {"met": "Met", "exceeded": "Exceeded", "not_met": "Not met"}
-
-        for group in groups:
-            st.markdown(
-                f'<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">{group.get("group", "")}</div>',
-                unsafe_allow_html=True,
-            )
-            spec_text = group.get("spec_text", "")
-            if spec_text:
-                st.markdown(f'<div class="spec-quote">"{spec_text}"</div>', unsafe_allow_html=True)
-
-            rows = ["<table class='result-table'><thead><tr><th style='width:22%'>Requirement</th><th style='width:11%'>Status</th><th>Evidence</th></tr></thead><tbody>"]
-            for item in group.get("items", []):
-                status = str(item.get("status", "")).lower()
-                cls = _badge_class.get(status, "status-met")
-                label = _badge_label.get(status, status.title())
-                where = item.get("where", "")
-                where_html = f'<br/><span class="evidence-where">{where}</span>' if where else ""
-                rows.append(
-                    "<tr>"
-                    f"<td><strong>{item.get('requirement', '')}</strong></td>"
-                    f"<td><span class='status-badge {cls}'>{label}</span></td>"
-                    f"<td>{item.get('evidence', '')}{where_html}</td>"
-                    "</tr>"
-                )
-            rows.append("</tbody></table>")
-            st.markdown("".join(rows), unsafe_allow_html=True)
-
-with tab_techniques:
-    st.markdown('<div class="section-heading">NLP techniques used in this project</div>', unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="card-note">
-            Every technique below is actually implemented in this project's code, not a generic
-            checklist -- each row states what the technique does and specifically how and why it is
-            used here, grounded in the real configuration and measurements reported elsewhere in
-            this dashboard.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    def technique_table(rows):
-        html = ["<table class='result-table'><thead><tr><th>Technique</th><th>What it does</th><th>How it is used in this project</th></tr></thead><tbody>"]
-        for name, what, how in rows:
-            html.append(f"<tr><td><strong>{name}</strong></td><td>{what}</td><td>{how}</td></tr>")
-        html.append("</tbody></table>")
-        st.markdown("".join(html), unsafe_allow_html=True)
-
-    st.markdown('<div class="section-heading" style="margin-top:0.4rem;font-size:1.1rem;">1. Text preprocessing and normalization</div>', unsafe_allow_html=True)
-    technique_table([
-        ("Unicode NFC normalization", "Canonicalizes text so visually identical characters that could be encoded as different Unicode byte sequences become one consistent representation.", "Applied to both languages before any tokenization. Critical for Odia, where consonant conjuncts and vowel-sign sequences can have multiple equivalent encodings -- without this step the same visible character could silently split the BPE vocabulary in two."),
-        ("Zero-width character handling", "Selectively removes zero-width characters that carry no linguistic meaning while preserving ones that do.", "ZWJ (U+200D) and ZWNJ (U+200C) control conjunct formation in Indic scripts and are preserved except at string edges or in runs of 2+ (a scraping artifact, collapsed to one). Truly meaningless ZWSP (U+200B) and BOM (U+FEFF) are always stripped."),
-        ("Whitespace normalization", "Collapses irregular whitespace runs into single spaces.", "Applied to both languages after zero-width cleanup, before the word-count filter."),
-        ("Length filtering", "Removes sentences that are too short (likely noise) or too long (likely misaligned/multi-sentence scraping errors).", "A 3-60 word filter runs first as a cheap pass, followed by a stricter subword-length filter (see Data tab) once tokenizers are trained."),
-        ("Deduplication", "Ensures no sentence appears more than once, and specifically not across more than one data split.", "Exact-duplicate English source sentences are removed before the train/validation/test split, preventing train-test leakage."),
-    ])
-
-    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">2. Tokenization</div>', unsafe_allow_html=True)
-    technique_table([
-        ("Byte-Pair Encoding (BPE)", "Learns a fixed-size vocabulary of frequently occurring subword units by iteratively merging the most common adjacent symbol pairs, letting rare/unseen words be represented as combinations of known pieces.", "Two independent 8,000-token BPE vocabularies are trained (English, Odia) via the HuggingFace tokenizers library, on the cleaned candidate pool."),
-        ("Byte-level pre-tokenization", "Operates on raw UTF-8 bytes rather than characters, so every possible input string is representable without any truly out-of-vocabulary input.", "This is exactly why the measured out-of-vocabulary rate on this dataset is 0.0% for both languages (EDA tab) -- a structural guarantee of the tokenization scheme, not a lucky coincidence of the corpus."),
-        ("Separate per-language vocabularies", "Trains an independent subword vocabulary for each language instead of one shared vocabulary.", "English and Odia share almost no Unicode code points, so a shared vocabulary would waste capacity; each language gets the full 8,000-token budget spent entirely on its own script."),
-        ("Special token scheme", "Reserves fixed vocabulary ids for structural tokens the model needs beyond real words.", "&lt;PAD&gt;=0, &lt;SOS&gt;=1, &lt;EOS&gt;=2, &lt;UNK&gt;=3, identical ids in both tokenizers, automatically wrapped onto every sequence via a TemplateProcessing post-processor."),
-    ])
-
-    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">3. Transformer architecture</div>', unsafe_allow_html=True)
-    technique_table([
-        ("Scaled token embeddings", "Converts discrete token ids into continuous vectors, scaled by the square root of the model dimension.", "Each embedding lookup is multiplied by sqrt(128) before positional information is added, keeping embedding and positional-encoding magnitudes comparable, per the original Transformer paper."),
-        ("Sinusoidal positional encoding", "Injects sequence-order information using fixed sine and cosine functions at different frequencies across the embedding dimensions, since attention itself has no built-in notion of order.", "A precomputed sin/cos table is added to every token embedding before it enters the encoder or decoder stack."),
-        ("Multi-head self-attention", "Lets every position attend to every other position in the same sequence, split across several parallel attention heads that can specialize in different relationships.", "4 attention heads of 32 dimensions each, used for both encoder self-attention and (in masked form) decoder self-attention."),
-        ("Masked (causal) self-attention", "Restricts each decoder position to attending only to itself and earlier positions, never future ones, which is what makes autoregressive generation valid.", "Enforced via a lower-triangular mask combined with the padding mask; verified directly by a dedicated automated test rather than only inferred from the loss curve (see Training tab)."),
-        ("Cross-attention", "Lets the decoder attend over the full encoder output, which is how information from the source sentence reaches the target-language generation process.", "Each of the 2 decoder blocks has a cross-attention sub-layer between its masked self-attention and its feed-forward sub-layer."),
-        ("Position-wise feed-forward network", "A two-layer fully connected network applied independently and identically at every sequence position, adding representational capacity beyond attention alone.", "128 -> 512 -> 128 with a ReLU activation, present in every encoder and decoder block."),
-        ("Residual connections + layer normalization", "Adds each sub-layer's input back to its output and normalizes the result, which is what makes a multi-block network trainable by keeping gradients well-behaved.", "Applied after every sub-layer (self-attention, cross-attention, feed-forward) in post-norm order: residual add, dropout, then LayerNorm."),
-        ("Padding masks", "Prevents attention from being influenced by &lt;PAD&gt; positions that exist only to let variable-length sentences share a batch.", "Applied in encoder self-attention, decoder self-attention, and cross-attention wherever padding could otherwise leak into a real prediction."),
-        ("Dropout regularization", "Randomly zeroes a fraction of activations during training to reduce overfitting.", "Rate 0.1, applied after attention and feed-forward sub-layers and on the positional encoding output -- meaningful on a comparatively small 36,000-pair training set."),
-        ("Weight-tying (implemented, disabled by default)", "An optional technique where the output projection shares its weight matrix with the target-side embedding table, reducing parameter count.", "Implemented as a constructor flag but left off by default, since the assignment specifies a plain linear-plus-softmax output head rather than this additional technique."),
-    ])
-
-    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">4. Training methodology</div>', unsafe_allow_html=True)
-    technique_table([
-        ("Teacher forcing", "Feeds the true previous target token as decoder input at every training step, instead of the model's own (possibly wrong) prediction.", "Standard for sequence-to-sequence training here -- the target sequence is shifted by one position to build decoder-input/decoder-target pairs."),
-        ("Cross-entropy loss with padding ignored", "Measures how well predicted next-token probabilities match the true next token, while explicitly excluding positions that only exist for batch padding.", "PyTorch's CrossEntropyLoss with ignore_index set to the &lt;PAD&gt; id, so padding never contributes to the loss or its gradients."),
-        ("Adam optimizer (Transformer-tuned)", "A gradient-based optimizer that adapts its per-parameter step size using running estimates of gradient mean and variance.", "Uses betas=(0.9, 0.98) and eps=1e-9, matching the original Transformer paper's settings rather than PyTorch's defaults."),
-        ("Learning-rate warmup (Noam schedule)", "Ramps the learning rate up linearly for an initial number of steps, then decays it proportional to the inverse square root of the step count.", "900 warmup steps; prevents large, destabilizing parameter updates before the attention layers have started to form sensible patterns."),
-        ("Gradient clipping", "Caps the overall gradient norm at every step to prevent occasional large gradients from destabilizing training.", "Clipped to a maximum norm of 1.0 on every optimizer step."),
-        ("Best-checkpoint selection", "Retains the model state from whichever epoch had the lowest validation loss, rather than simply the last epoch.", "Validation loss is tracked every epoch and the best-scoring checkpoint is saved separately from the final one, so an overfitting tail would never silently become the evaluated model."),
-        ("Label smoothing", "Softens the one-hot training target so the model is penalised for extreme overconfidence, which improves calibration and reduces repetitive output.", "Applied at 0.1 in the cross-entropy loss. Note this shifts the absolute loss floor, so smoothed and unsmoothed runs are not directly comparable by loss value alone."),
-    ])
-
-    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">5. Decoding strategies</div>', unsafe_allow_html=True)
-    technique_table([
-        ("Greedy decoding", "Generates one token at a time by always picking the single highest-probability next token and feeding it back in, until an end-of-sequence token or a length limit is reached.", "The required decoding strategy for this assignment; used for every translation shown on the Results and Translate tabs by default."),
-        ("Beam search decoding", "Maintains several candidate partial translations simultaneously (a beam), scored by length-normalized cumulative log-probability, exploring more of the output space than greedy decoding.", "Implemented as the assignment's optional bonus item, kept in an isolated module so it cannot affect the required greedy path; available live via the checkbox on the Live Demo tab."),
-        ("No-repeat n-gram blocking", "Prevents the decoder from emitting any n-gram it has already produced in the same sequence, by masking the offending continuation token before the arg-max is taken.", "Applied at n=3 to both greedy and beam decoding. This targets the degenerate repetition loop that is the dominant failure mode on longer sentences, and needs no retraining since it acts purely at inference time."),
-        ("Attention inspection", "Reads out the decoder's cross-attention distribution over the source sentence for each generated token, showing which source words the model was relying on.", "Exposed as a non-invasive side channel that leaves the forward computation numerically unchanged, and rendered as a heatmap in the Live Demo tab."),
-    ])
-
-    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">6. Evaluation methodology</div>', unsafe_allow_html=True)
-    technique_table([
-        ("BLEU score", "An automated n-gram precision metric that compares machine output against human reference translations, the standard metric for machine translation quality.", "Computed via sacrebleu over the full 2,000-sentence held-out test set, with identical postprocessing (strip special tokens, decode, normalize whitespace) applied to hypotheses and references so the score reflects translation quality, not formatting artifacts."),
-        ("Held-out test evaluation", "Reserves a portion of the data that is never used for training or model selection, so its score is an unbiased estimate of generalization.", "The 2,000-sentence test split is distinct from both the 36,000-sentence training split and the 2,000-sentence validation split used for checkpoint selection."),
-        ("Causal-mask leakage testing", "An automated test that proves a decoder cannot be attending to future tokens, rather than only inferring correctness from an unusually good loss curve.", "The decoder is run twice on identical tokens up to a cut position and different tokens after it; the outputs before the cut are asserted bit-for-bit identical. The assignment explicitly warns that a suspiciously perfect loss curve is a symptom of exactly this bug."),
-    ])
-
-    st.markdown('<div class="section-heading" style="margin-top:1.4rem;font-size:1.1rem;">7. Corpus and linguistic analysis (EDA tab)</div>', unsafe_allow_html=True)
-    technique_table([
-        ("Type-token ratio (TTR)", "The ratio of unique words to total word occurrences, a standard measure of lexical diversity.", "Computed independently for English and Odia to compare how repetitive versus varied each language's vocabulary usage is across the corpus."),
-        ("Pearson correlation", "A statistical measure of how linearly two variables move together.", "Used to check whether English sentence length predicts Odia sentence length, as a sanity check that the parallel corpus is genuinely aligned rather than noisy."),
-        ("Zipfian frequency analysis", "Examines whether word frequency follows the expected natural-language pattern of a small number of words accounting for a large share of occurrences.", "Used as a corpus sanity check on the top-word frequency tables, not as a modeling technique."),
-    ])
-
-with tab_arch:
-    st.markdown('<div class="section-heading">Model configuration</div>', unsafe_allow_html=True)
-
-    hp_rows = [
-        ("Model dimension (d_model)", g(HYPERPARAMS, "d_model")),
-        ("Attention heads", g(HYPERPARAMS, "n_heads")),
-        ("Feed-forward dimension (d_ff)", g(HYPERPARAMS, "d_ff")),
-        ("Encoder layers", g(HYPERPARAMS, "n_encoder_layers")),
-        ("Decoder layers", g(HYPERPARAMS, "n_decoder_layers")),
-        ("Dropout", g(HYPERPARAMS, "dropout")),
-        ("Output projection tied to embedding", g(HYPERPARAMS, "tie_output_projection")),
-        ("Layer norm style", g(HYPERPARAMS, "layer_norm_style")),
-        ("English vocab size", g(HYPERPARAMS, "en_vocab_size")),
-        ("Odia vocab size", g(HYPERPARAMS, "or_vocab_size")),
-        ("Max sequence length", g(HYPERPARAMS, "max_len")),
-        ("Batch size (Kaggle)", g(HYPERPARAMS, "batch_size_kaggle")),
-        ("Epochs (Kaggle)", g(HYPERPARAMS, "num_epochs_kaggle")),
-        ("Warmup steps", g(HYPERPARAMS, "warmup_steps")),
-        ("Total parameters", fmt_num(g(HYPERPARAMS, "total_params"))),
-    ]
-
-    cols = st.columns(3)
-    for idx, (label, value) in enumerate(hp_rows):
-        with cols[idx % 3]:
-            with st.container(border=True):
-                st.metric(label, str(value))
-
-    st.markdown('<div class="section-heading" style="margin-top:1.6rem;">Encoder-decoder flow</div>', unsafe_allow_html=True)
-
-    n_enc = g(HYPERPARAMS, "n_encoder_layers", "N")
-    n_dec = g(HYPERPARAMS, "n_decoder_layers", "N")
-    st.markdown(
-        f"""
-        <div class="arch-flow">
-            <div class="arch-box">Token Embedding<br/>+ Positional Encoding</div>
-            <div class="arch-arrow">&#8594;</div>
-            <div class="arch-box">{n_enc}&times; Encoder Block<br/><span style="font-weight:400;font-size:0.78rem;">self-attn &rarr; FFN</span></div>
-            <div class="arch-arrow">&#8594;</div>
-            <div class="arch-box accent">{n_dec}&times; Decoder Block<br/><span style="font-weight:400;font-size:0.78rem;">masked self-attn &rarr; cross-attn &rarr; FFN</span></div>
-            <div class="arch-arrow">&#8594;</div>
-            <div class="arch-box">Linear + Softmax<br/><span style="font-weight:400;font-size:0.78rem;">Odia vocab distribution</span></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with tab_data:
-    st.markdown('<div class="section-heading">Dataset composition</div>', unsafe_allow_html=True)
-
-    ds_cols = st.columns(4)
-    ds_items = [
-        ("Candidate pool", fmt_num(g(DATA_STATS, "candidate_pool_size"))),
-        ("Retention rate", f"{g(DATA_STATS, 'retention_rate_pct')}%"),
-        ("Train / val / test", f"{fmt_num(g(DATA_STATS,'train_size'))} / {fmt_num(g(DATA_STATS,'val_size'))} / {fmt_num(g(DATA_STATS,'test_size'))}"),
-        ("Total pairs used", fmt_num(g(DATA_STATS, "total_size"))),
-    ]
-    for col, (label, value) in zip(ds_cols, ds_items):
-        with col:
-            with st.container(border=True):
-                st.metric(label, value)
-
-    st.markdown('<div class="section-heading" style="margin-top:1.6rem;">Subword length distribution</div>', unsafe_allow_html=True)
-
-    en_stats = TOKENIZER_STATS.get("english", {}) if isinstance(TOKENIZER_STATS, dict) else {}
-    or_stats = TOKENIZER_STATS.get("odia", {}) if isinstance(TOKENIZER_STATS, dict) else {}
-
-    metrics_order = ["mean", "median", "p90", "p95", "p99", "max"]
-    length_rows = []
-    for m in metrics_order:
-        if m in en_stats:
-            length_rows.append({"metric": m, "language": "English", "value": en_stats.get(m)})
-        if m in or_stats:
-            length_rows.append({"metric": m, "language": "Odia", "value": or_stats.get(m)})
-
-    if length_rows:
-        length_df = pd.DataFrame(length_rows)
-        length_chart = (
-            alt.Chart(length_df)
-            .mark_bar(size=18, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
-            .encode(
-                x=alt.X("metric:N", sort=metrics_order, title="Statistic", axis=alt.Axis(labelAngle=0)),
-                xOffset=alt.XOffset("language:N", sort=["English", "Odia"]),
-                y=alt.Y("value:Q", title="Subword tokens"),
-                color=alt.Color(
-                    "language:N",
-                    sort=["English", "Odia"],
-                    scale=alt.Scale(domain=["English", "Odia"], range=[TEAL, AMBER]),
-                    legend=alt.Legend(title="Language", orient="top"),
-                ),
-                tooltip=[
-                    alt.Tooltip("language:N", title="Language"),
-                    alt.Tooltip("metric:N", title="Statistic"),
-                    alt.Tooltip("value:Q", title="Subword tokens"),
-                ],
-            )
-            .configure_view(strokeWidth=0)
-            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-            .configure_legend(labelColor=TEXT_MAIN, titleColor=TEXT_MAIN)
-            .properties(height=340, background="#FFFFFF")
-        )
-        st.altair_chart(length_chart, use_container_width=True)
-
-    retention = TOKENIZER_STATS.get("retention_at_max_len", {}) if isinstance(TOKENIZER_STATS, dict) else {}
-    if retention:
-        ret_df = pd.DataFrame(
-            [{"max_len": int(k), "retention_pct": v} for k, v in retention.items()]
-        ).sort_values("max_len")
-        ret_chart = (
-            alt.Chart(ret_df)
-            .mark_line(point=alt.OverlayMarkDef(size=70, filled=True, color=TEAL), color=TEAL, strokeWidth=2.5)
-            .encode(
-                x=alt.X("max_len:Q", title="Max sequence length (subword tokens)"),
-                y=alt.Y("retention_pct:Q", title="Pair retention (%)"),
-                tooltip=[
-                    alt.Tooltip("max_len:Q", title="Max length"),
-                    alt.Tooltip("retention_pct:Q", title="Retention %"),
-                ],
-            )
-            .configure_view(strokeWidth=0)
-            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-            .properties(height=280, background="#FFFFFF", title="Pair retention vs. max sequence length")
-        )
-        st.altair_chart(ret_chart, use_container_width=True)
-
-    st.markdown(
-        """
-        <div class="card-note">
-            Odia subword sequences run roughly three times longer than their English
-            counterparts at every percentile. Odia is written in a multi-byte Brahmic
-            script with heavy use of conjunct consonants and vowel-sign diacritics,
-            so a single visual syllable often decomposes into several subword units.
-            Odia's richer verb and noun morphology also adds inflectional material
-            that English expresses with separate function words, further inflating
-            token counts per sentence.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with tab_eda:
-    st.markdown('<div class="section-heading">Exploratory data analysis</div>', unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="card-note">
-            Computed directly on the full 40,000-pair processed dataset (train, validation,
-            and test splits combined) using the actual production tokenizers, not the small
-            pilot sample used to size <code>MAX_LEN</code> earlier.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    en_words = EDA_RESULTS.get("en_word_counts", [])
-    or_words = EDA_RESULTS.get("or_word_counts", [])
-    en_subwords = EDA_RESULTS.get("en_subword_counts", [])
-    or_subwords = EDA_RESULTS.get("or_subword_counts", [])
-    ratios = EDA_RESULTS.get("subword_ratio", [])
-    top_en = EDA_RESULTS.get("top_words_en", [])
-    top_or = EDA_RESULTS.get("top_words_or", [])
-    split_comp = EDA_RESULTS.get("split_composition", {})
-
-    en_chars = EDA_RESULTS.get("en_char_counts", [])
-    or_chars = EDA_RESULTS.get("or_char_counts", [])
-    en_awl = EDA_RESULTS.get("en_avg_word_len", [])
-    or_awl = EDA_RESULTS.get("or_avg_word_len", [])
-    en_unk = EDA_RESULTS.get("en_unk_counts", [])
-    or_unk = EDA_RESULTS.get("or_unk_counts", [])
-    en_unk_rate = EDA_RESULTS.get("en_unk_rate_pct")
-    or_unk_rate = EDA_RESULTS.get("or_unk_rate_pct")
-    en_end_punct = EDA_RESULTS.get("en_ending_punct", {})
-    or_end_punct = EDA_RESULTS.get("or_ending_punct", {})
-    en_pct_digits = EDA_RESULTS.get("en_pct_with_digits")
-    or_pct_digits = EDA_RESULTS.get("or_pct_with_digits")
-    vocab_stats = EDA_RESULTS.get("vocab_stats", {})
-    length_corr = EDA_RESULTS.get("length_correlation", {})
-    cleaning_funnel = EDA_RESULTS.get("cleaning_funnel", {})
-    descriptive_stats = EDA_RESULTS.get("descriptive_stats", {})
-    top_en_full = EDA_RESULTS.get("top_words_en_full", [])
-    top_or_full = EDA_RESULTS.get("top_words_or_full", [])
-
-    EDA_PALETTE_5 = [TEAL, AMBER, CRITICAL, "#0369A1", "#64748B"]
-
-    def _pie(counts, colors=None, height=320, sort_desc=True):
-        items = list(counts.items())
-        if sort_desc:
-            items.sort(key=lambda kv: kv[1], reverse=True)
-        cats = [str(k) for k, _ in items]
-        vals = [v for _, v in items]
-        total = sum(vals) or 1
-        df = pd.DataFrame({"category": cats, "value": vals, "pct": [v / total * 100 for v in vals]})
-        color_range = (colors or EDA_PALETTE_5)[: len(cats)]
-        return (
-            alt.Chart(df)
-            .mark_arc(innerRadius=65, outerRadius=125, stroke="#FFFFFF", strokeWidth=2)
-            .encode(
-                theta=alt.Theta("value:Q", stack=True),
-                color=alt.Color(
-                    "category:N",
-                    sort=cats,
-                    scale=alt.Scale(domain=cats, range=color_range),
-                    legend=alt.Legend(title=None, orient="bottom"),
-                ),
-                tooltip=[
-                    alt.Tooltip("category:N", title="Category"),
-                    alt.Tooltip("value:Q", title="Value"),
-                    alt.Tooltip("pct:Q", title="Share", format=".1f"),
-                ],
-            )
-            .configure_view(strokeWidth=0)
-            .properties(height=height, background="#FFFFFF")
-        )
-
-    def _int_hist(values, label, color, max_x):
-        df = pd.DataFrame({label: values})
-        return (
-            alt.Chart(df)
-            .mark_bar(color=color)
-            .encode(
-                x=alt.X(f"{label}:Q", bin=alt.Bin(step=1, extent=[0, max_x]), title=label),
-                y=alt.Y("count():Q", title="Sentence pairs"),
-            )
-            .configure_view(strokeWidth=0)
-            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-            .properties(height=260, background="#FFFFFF")
-        )
-
-    def _hist(values, label, color, max_x=None):
-        df = pd.DataFrame({label: values})
-        x_enc = alt.X(f"{label}:Q", bin=alt.Bin(maxbins=40), title=label)
-        if max_x:
-            x_enc = alt.X(f"{label}:Q", bin=alt.Bin(maxbins=40, extent=[0, max_x]), title=label, scale=alt.Scale(domain=[0, max_x]))
-        return (
-            alt.Chart(df)
-            .mark_bar(color=color)
-            .encode(x=x_enc, y=alt.Y("count():Q", title="Sentence pairs"))
-            .configure_view(strokeWidth=0)
-            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-            .properties(height=260, background="#FFFFFF")
-        )
-
-    if en_words and or_words:
-        st.markdown('<div class="section-heading" style="margin-top:0.4rem;">Sentence length in words</div>', unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            st.altair_chart(_hist(en_words, "English word count", TEAL, max_x=40), use_container_width=True)
-        with col2:
-            st.altair_chart(_hist(or_words, "Odia word count", AMBER, max_x=40), use_container_width=True)
-
-        import statistics as _stats
-        st.markdown(
-            f"""
-            <div class="card-note">
-                English sentences average {_stats.mean(en_words):.1f} words (median
-                {_stats.median(en_words):.0f}), while Odia sentences for the same content average
-                {_stats.mean(or_words):.1f} words (median {_stats.median(or_words):.0f}) -- slightly
-                fewer, not more. This is consistent with Odia's agglutinative morphology: case
-                markers, postpositions, and connective particles that English spells as separate
-                words are frequently fused onto the preceding word in Odia, so the same content is
-                expressed in fewer, denser word units.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if en_subwords and or_subwords:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Sentence length in subword tokens</div>', unsafe_allow_html=True)
-        col3, col4 = st.columns(2)
-        with col3:
-            st.altair_chart(_hist(en_subwords, "English subword count", TEAL, max_x=100), use_container_width=True)
-        with col4:
-            st.altair_chart(_hist(or_subwords, "Odia subword count", AMBER, max_x=100), use_container_width=True)
-
-        import statistics as _stats
-        en_mean, or_mean = _stats.mean(en_subwords), _stats.mean(or_subwords)
-        st.markdown(
-            f"""
-            <div class="card-note">
-                The picture reverses completely once text is broken into the subword units the
-                model actually consumes: English averages {en_mean:.1f} subword tokens per sentence,
-                Odia averages {or_mean:.1f} -- roughly {or_mean / en_mean:.1f} times longer, despite
-                having fewer words. Odia's multi-byte Brahmic script and heavy use of consonant
-                conjuncts and vowel-sign diacritics mean a single word, and even a single visual
-                syllable, routinely decomposes into several subword pieces. This is also why the
-                production tokenizer (trained on the full 58,000-pair candidate pool) produced
-                noticeably shorter Odia sequences than the earlier 8,000-pair pilot tokenizer
-                estimated (mean {or_mean:.1f} here versus 49.8 in the pilot) -- more training text
-                let BPE learn more efficient merges, confirming that pilot measurement was a
-                conservative upper bound rather than the final answer.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if ratios:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Odia-to-English length ratio</div>', unsafe_allow_html=True)
-        st.altair_chart(_hist(ratios, "Odia subwords per English subword", TEAL, max_x=8), use_container_width=True)
-
-        import statistics as _stats
-        st.markdown(
-            f"""
-            <div class="card-note">
-                For a typical sentence pair, Odia needs {_stats.median(ratios):.2f} times as many
-                subword tokens as English to express the same content (median ratio; mean
-                {_stats.mean(ratios):.2f}). This asymmetry is the direct explanation for why a
-                shared <code>MAX_LEN=64</code> budget disproportionately truncates the Odia side of
-                the corpus rather than the English side, and why the pair-retention rate reported in
-                the Data and Tokenization tab is driven almost entirely by Odia sentence length, not
-                English.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if top_en and top_or:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Most frequent words</div>', unsafe_allow_html=True)
-        col5, col6 = st.columns(2)
-
-        def _top_words_chart(pairs, color, font_class=None):
-            df = pd.DataFrame(pairs, columns=["word", "count"])
-            chart = (
-                alt.Chart(df)
-                .mark_bar(color=color)
-                .encode(
-                    x=alt.X("count:Q", title="Occurrences"),
-                    y=alt.Y("word:N", sort="-x", title=None),
-                    tooltip=["word", "count"],
-                )
-                .configure_view(strokeWidth=0)
-                .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-                .properties(height=380, background="#FFFFFF")
-            )
-            return chart
-
-        with col5:
-            st.caption("English (common stopwords removed)")
-            st.altair_chart(_top_words_chart(top_en, TEAL), use_container_width=True)
-        with col6:
-            st.caption("Odia")
-            st.altair_chart(_top_words_chart(top_or, AMBER), use_container_width=True)
-
-        st.markdown(
-            """
-            <div class="card-note">
-                English's most frequent content words -- "police", "india", "government" among
-                them -- reflect Samanantar's journalistic source material rather than general
-                conversational English. Odia's most frequent words are almost entirely closed-class
-                grammatical particles and pronouns (roughly: this, he/she/they, and, for, also,
-                it, not, after, a, and), essentially unfiltered since no curated Odia stopword list
-                was applied. That the top of the frequency list is dominated by function words
-                either way, in both languages independently, is the expected Zipfian shape of
-                natural-language word frequency, not an artifact of this particular corpus.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if not (en_words or top_en or split_comp):
-        st.info("No EDA results available.")
-
-    if en_chars and or_chars:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Sentence length in characters</div>', unsafe_allow_html=True)
-        col7, col8 = st.columns(2)
-        with col7:
-            st.altair_chart(_hist(en_chars, "English character count", TEAL), use_container_width=True)
-        with col8:
-            st.altair_chart(_hist(or_chars, "Odia character count", AMBER), use_container_width=True)
-
-        import statistics as _stats
-        en_c_mean, or_c_mean = _stats.mean(en_chars), _stats.mean(or_chars)
-        _longer_chars = "Odia" if or_c_mean > en_c_mean else "English"
-        _char_ratio = max(or_c_mean, en_c_mean) / min(or_c_mean, en_c_mean)
-        st.markdown(
-            f"""
-            <div class="card-note">
-                English sentences average {en_c_mean:.1f} characters (median {_stats.median(en_chars):.0f}),
-                against {or_c_mean:.1f} characters (median {_stats.median(or_chars):.0f}) for the matching
-                Odia sentences -- {_longer_chars} runs about {_char_ratio:.2f}&times; longer in raw character
-                count for the same content. Odia's Brahmic script represents syllables with a base consonant
-                plus combining vowel signs and, for consonant clusters, additional conjunct glyphs, which
-                tends to inflate character counts relative to a Latin alphabet even when word counts (see
-                above) do not move the same way.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if en_awl and or_awl:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Average word length (characters)</div>', unsafe_allow_html=True)
-        col9, col10 = st.columns(2)
-        with col9:
-            st.altair_chart(_hist(en_awl, "English avg word length", TEAL), use_container_width=True)
-        with col10:
-            st.altair_chart(_hist(or_awl, "Odia avg word length", AMBER), use_container_width=True)
-
-        import statistics as _stats
-        en_awl_mean, or_awl_mean = _stats.mean(en_awl), _stats.mean(or_awl)
-        _longer_words = "Odia" if or_awl_mean > en_awl_mean else "English"
-        _awl_diff_pct = abs(or_awl_mean - en_awl_mean) / min(en_awl_mean, or_awl_mean) * 100
-        st.markdown(
-            f"""
-            <div class="card-note">
-                The average English word in this corpus is {en_awl_mean:.2f} characters long, versus
-                {or_awl_mean:.2f} for Odia -- {_longer_words} words run about {_awl_diff_pct:.0f}% longer
-                per word on average. Read together with the character-count and word-count charts above,
-                this is where the character-level difference between the two languages actually originates:
-                a shift in per-word length rather than in how many words a sentence contains, consistent
-                with case markers and postpositions being fused onto word stems in Odia rather than left as
-                separate tokens.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if en_unk or or_unk or en_unk_rate is not None or or_unk_rate is not None:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Tokenizer coverage (UNK rate)</div>', unsafe_allow_html=True)
-
-        if en_unk and or_unk:
-            max_unk = max(max(en_unk), max(or_unk), 1)
-            col11, col12 = st.columns(2)
-            with col11:
-                st.altair_chart(_int_hist(en_unk, "English UNK tokens per sentence", TEAL, max_unk), use_container_width=True)
-            with col12:
-                st.altair_chart(_int_hist(or_unk, "Odia UNK tokens per sentence", AMBER, max_unk), use_container_width=True)
-
-        mcol1, mcol2 = st.columns(2)
-        with mcol1:
-            with st.container(border=True):
-                st.metric("English UNK rate", f"{en_unk_rate:.3f}%" if isinstance(en_unk_rate, (int, float)) else "n/a")
-        with mcol2:
-            with st.container(border=True):
-                st.metric("Odia UNK rate", f"{or_unk_rate:.3f}%" if isinstance(or_unk_rate, (int, float)) else "n/a")
-
-        _rate_desc = []
-        if isinstance(en_unk_rate, (int, float)):
-            _rate_desc.append(f"English at {en_unk_rate:.3f}%")
-        if isinstance(or_unk_rate, (int, float)):
-            _rate_desc.append(f"Odia at {or_unk_rate:.3f}%")
-        _rate_text = " and ".join(_rate_desc) if _rate_desc else "not yet computed"
-        st.markdown(
-            f"""
-            <div class="card-note">
-                Overall &lt;UNK&gt; coverage sits at {_rate_text} of tokens. A low UNK rate (well under 1%)
-                means the BPE tokenizer's learned merge table already covers almost every character and
-                subword pattern actually occurring in this corpus, so the model rarely has to fall back to
-                an uninformative unknown-token placeholder during training or inference. A meaningfully
-                higher UNK rate would instead point to vocabulary size being too small for the script's
-                character inventory, or to the tokenizer having been trained on a different data
-                distribution than it is now being applied to -- worth checking against the vocab sizes
-                reported in the Architecture tab if this number ever climbs.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if split_comp:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Split composition (proportions)</div>', unsafe_allow_html=True)
-        preferred = ["train", "val", "test"]
-        ordered_split = {k: split_comp[k] for k in preferred if k in split_comp}
-        ordered_split.update({k: v for k, v in split_comp.items() if k not in ordered_split})
-        st.altair_chart(_pie(ordered_split, colors=[TEAL, AMBER, CRITICAL], sort_desc=False), use_container_width=True)
-        _split_total = sum(split_comp.values()) or 1
-        _split_breakdown = ", ".join(f"{k} {v / _split_total * 100:.1f}%" for k, v in ordered_split.items())
-        st.markdown(
-            f"""
-            <div class="card-note">
-                The {fmt_num(g(DATA_STATS, 'total_size'))} sampled pairs split as {_split_breakdown} -- a
-                standard train-dominant split that leaves enough held-out data in validation and test to
-                get a stable loss curve and a meaningful BLEU estimate without sacrificing training signal.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if en_end_punct or or_end_punct:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Sentence-ending punctuation</div>', unsafe_allow_html=True)
-        col13, col14 = st.columns(2)
-        with col13:
-            st.caption("English")
-            if en_end_punct:
-                st.altair_chart(_pie(en_end_punct, colors=EDA_PALETTE_5), use_container_width=True)
-        with col14:
-            st.caption("Odia")
-            if or_end_punct:
-                st.altair_chart(_pie(or_end_punct, colors=EDA_PALETTE_5), use_container_width=True)
-
-        _en_top_punct = max(en_end_punct, key=en_end_punct.get) if en_end_punct else None
-        _or_top_punct = max(or_end_punct, key=or_end_punct.get) if or_end_punct else None
-        _punct_bits = []
-        if _en_top_punct:
-            _punct_bits.append(f"English sentences most commonly end in '{_en_top_punct}'.")
-        if _or_top_punct:
-            _punct_bits.append(f"Odia sentences most commonly end in '{_or_top_punct}', the Odia sentence-final danda where the corpus retains native punctuation rather than a Latin period.")
-        st.markdown(
-            f"""
-            <div class="card-note">
-                {' '.join(_punct_bits)}
-                A high share of "other" endings in either language usually indicates truncated, list-like,
-                or otherwise noisy source sentences that survived cleaning without a terminal mark, which is
-                useful context when interpreting outliers in the length distributions above.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if en_words and or_words and length_corr:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">English vs Odia sentence length (word count)</div>', unsafe_allow_html=True)
-        scatter_df = pd.DataFrame({"English words": en_words, "Odia words": or_words})
-        scatter_chart = (
-            alt.Chart(scatter_df)
-            .mark_circle(size=16, opacity=0.18, color=TEAL)
-            .encode(
-                x=alt.X("English words:Q", title="English word count"),
-                y=alt.Y("Odia words:Q", title="Odia word count"),
-                tooltip=[alt.Tooltip("English words:Q"), alt.Tooltip("Odia words:Q")],
-            )
-            .configure_view(strokeWidth=0)
-            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-            .properties(height=380, background="#FFFFFF")
-        )
-        st.altair_chart(scatter_chart, use_container_width=True)
-
-        r_words = length_corr.get("pearson_r_words")
-        r_subwords = length_corr.get("pearson_r_subwords")
-        if isinstance(r_words, (int, float)) and isinstance(r_subwords, (int, float)):
-            _r_desc = "strong" if r_words >= 0.7 else "moderate" if r_words >= 0.4 else "weak"
-            st.markdown(
-                f"""
-                <div class="card-note">
-                    Pearson correlation between English and Odia sentence length is
-                    r = {r_words:.3f} in words and r = {r_subwords:.3f} in subword tokens, a {_r_desc}
-                    positive relationship. This is exactly the shape a genuinely parallel, consistently
-                    translated corpus should have: longer source sentences produce longer target
-                    sentences and vice versa, rather than target length being decoupled from source
-                    length. A weak or near-zero correlation here would instead be a red flag for
-                    misaligned pairs, machine-generated filler, or truncated sentences slipping through
-                    the cleaning pipeline.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    if cleaning_funnel:
-        _funnel_pool = cleaning_funnel.get("candidate_pool_after_cleaning")
-        _funnel_survived = cleaning_funnel.get("survived_max_len_filter")
-        _funnel_final = cleaning_funnel.get("final_sampled")
-        if all(isinstance(v, (int, float)) for v in (_funnel_pool, _funnel_survived, _funnel_final)):
-            st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Data cleaning funnel</div>', unsafe_allow_html=True)
-            stages = ["Candidate pool after cleaning", "Survived MAX_LEN filter", "Final sampled"]
-            funnel_df = pd.DataFrame({"stage": stages, "count": [_funnel_pool, _funnel_survived, _funnel_final]})
-            funnel_chart = (
-                alt.Chart(funnel_df)
-                .mark_bar(color=TEAL, size=70, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
-                .encode(
-                    x=alt.X("stage:N", sort=stages, title=None, axis=alt.Axis(labelAngle=0)),
-                    y=alt.Y("count:Q", title="Sentence pairs"),
-                    tooltip=[alt.Tooltip("stage:N", title="Stage"), alt.Tooltip("count:Q", title="Pairs", format=",")],
-                )
-                .configure_view(strokeWidth=0)
-                .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-                .properties(height=300, background="#FFFFFF")
-            )
-            st.altair_chart(funnel_chart, use_container_width=True)
-
-            _lost_len_filter = _funnel_pool - _funnel_survived
-            _lost_len_pct = (_lost_len_filter / _funnel_pool * 100) if _funnel_pool else 0.0
-            _kept_final_pct = (_funnel_final / _funnel_survived * 100) if _funnel_survived else 0.0
-            st.markdown(
-                f"""
-                <div class="card-note">
-                    Of the {fmt_num(_funnel_pool)} candidate pairs remaining after text cleaning,
-                    {fmt_num(_lost_len_filter)} ({_lost_len_pct:.1f}%) are dropped by the
-                    <code>MAX_LEN</code> subword-length filter, leaving {fmt_num(_funnel_survived)}
-                    pairs, of which {fmt_num(_funnel_final)} ({_kept_final_pct:.1f}% of survivors) are
-                    kept in the final sampled dataset. As the subword length-ratio analysis above shows,
-                    Odia sequences run several times longer than English at the same content, so a single
-                    shared <code>MAX_LEN</code> budget disproportionately filters out pairs where the Odia
-                    side is too long rather than the English side -- the funnel here is effectively an
-                    Odia-length filter wearing an English-length filter's name.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    if descriptive_stats:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Descriptive statistics</div>', unsafe_allow_html=True)
-        _row_labels = {
-            "en_words": "English words",
-            "or_words": "Odia words",
-            "en_subwords": "English subwords",
-            "or_subwords": "Odia subwords",
-            "subword_ratio": "Subword ratio (Odia / English)",
-            "en_chars": "English characters",
-            "or_chars": "Odia characters",
-        }
-        _col_order = ["mean", "std", "min", "p25", "median", "p75", "p90", "p95", "p99", "max"]
-        _desc_rows = {
-            label: {col: descriptive_stats[key].get(col) for col in _col_order}
-            for key, label in _row_labels.items()
-            if key in descriptive_stats
-        }
-        if _desc_rows:
-            desc_df = pd.DataFrame(_desc_rows).T[_col_order].round(2)
-            st.dataframe(desc_df, use_container_width=True)
-
-            st.markdown(
-                """
-                <div class="card-note">
-                    Percentiles rather than mean/std alone matter here because sentence length is
-                    right-skewed: the gap between the median and the p99/max columns shows how long the
-                    tail of unusually long sentences runs for each measure, which is what actually drives
-                    truncation risk under a fixed <code>MAX_LEN</code> rather than the mean length.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    if vocab_stats:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Vocabulary richness</div>', unsafe_allow_html=True)
-        vocab_df = pd.DataFrame(
-            {
-                "Total words": [vocab_stats.get("en_total_words"), vocab_stats.get("or_total_words")],
-                "Unique words": [vocab_stats.get("en_unique_words"), vocab_stats.get("or_unique_words")],
-                "Type-token ratio": [vocab_stats.get("en_ttr"), vocab_stats.get("or_ttr")],
-            },
-            index=["English", "Odia"],
-        )
-        if pd.api.types.is_numeric_dtype(vocab_df["Type-token ratio"]):
-            vocab_df["Type-token ratio"] = vocab_df["Type-token ratio"].round(4)
-        st.dataframe(vocab_df, use_container_width=True)
-
-        en_ttr = vocab_stats.get("en_ttr")
-        or_ttr = vocab_stats.get("or_ttr")
-        if isinstance(en_ttr, (int, float)) and isinstance(or_ttr, (int, float)):
-            _higher_lang = "Odia" if or_ttr > en_ttr else "English"
-            if _higher_lang == "Odia":
-                _morph_note = (
-                    "Odia is agglutinative and inflects nouns and verbs for case, number, and honorific "
-                    "register by adding suffixes to a shared stem, so the same underlying vocabulary "
-                    "surfaces as many more distinct word forms -- exactly what a higher type-token ratio "
-                    "measures."
-                )
-            else:
-                _morph_note = (
-                    "even though Odia's morphology is more inflected than English's, the raw word-form "
-                    "count here comes out lower relative to English, which given the corpus size is more "
-                    "consistent with a smaller effective vocabulary in this particular sample than with "
-                    "morphology alone."
-                )
-            st.markdown(
-                f"""
-                <div class="card-note">
-                    Type-token ratio (unique words / total words) is {en_ttr:.4f} for English and
-                    {or_ttr:.4f} for Odia -- {_higher_lang} shows the higher lexical diversity of the two
-                    on this corpus. {_morph_note}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    if top_en_full and top_or_full:
-        st.markdown('<div class="section-heading" style="margin-top:1.4rem;">Top 30 words, full detail</div>', unsafe_allow_html=True)
-        col15, col16 = st.columns(2)
-        with col15:
-            st.caption("English (common stopwords removed)")
-            en_full_df = pd.DataFrame(top_en_full, columns=["word", "count", "percentage"])
-            en_full_df["percentage"] = en_full_df["percentage"].round(2)
-            st.dataframe(en_full_df, use_container_width=True, hide_index=True)
-        with col16:
-            st.caption("Odia")
-            or_full_df = pd.DataFrame(top_or_full, columns=["word", "count", "percentage"])
-            or_full_df["percentage"] = or_full_df["percentage"].round(2)
-            st.dataframe(or_full_df, use_container_width=True, hide_index=True)
-
-        st.markdown(
-            f"""
-            <div class="card-note">
-                Extending the ranking from the top 20 shown in the charts above to the top 30 words in
-                each language: the English list is topped by "{top_en_full[0][0]}" at
-                {top_en_full[0][2]:.2f}% of all (non-stopword) word occurrences, and the Odia list by
-                "{top_or_full[0][0]}" at {top_or_full[0][2]:.2f}%. A steep drop-off from rank 1 to rank
-                30 is the expected Zipfian pattern for natural-language word frequency; a flat,
-                near-uniform distribution across the top 30 instead would be a sign of a corpus dominated
-                by boilerplate or templated sentences rather than natural text variety.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-with tab_training:
-    st.markdown('<div class="section-heading">Loss curves</div>', unsafe_allow_html=True)
-
-    if TRAINING_HISTORY:
-        hist_df = pd.DataFrame(TRAINING_HISTORY)
-        long_df = hist_df.melt(id_vars="epoch", value_vars=["train_loss", "val_loss"], var_name="split", value_name="loss")
-        split_label = {"train_loss": "Train loss", "val_loss": "Validation loss"}
-        long_df["split"] = long_df["split"].map(split_label)
-
-        loss_chart = (
-            alt.Chart(long_df)
-            .mark_line(strokeWidth=2.5, point=alt.OverlayMarkDef(size=45, filled=True))
-            .encode(
-                x=alt.X("epoch:Q", title="Epoch", axis=alt.Axis(tickMinStep=1)),
-                y=alt.Y("loss:Q", title="Loss"),
-                color=alt.Color(
-                    "split:N",
-                    sort=["Train loss", "Validation loss"],
-                    scale=alt.Scale(domain=["Train loss", "Validation loss"], range=[TEAL, AMBER]),
-                    legend=alt.Legend(title="", orient="top"),
-                ),
-                tooltip=[
-                    alt.Tooltip("epoch:Q", title="Epoch"),
-                    alt.Tooltip("split:N", title="Split"),
-                    alt.Tooltip("loss:Q", title="Loss", format=".4f"),
-                ],
-            )
-            .configure_view(strokeWidth=0)
-            .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-            .configure_legend(labelColor=TEXT_MAIN)
-            .properties(height=380, background="#FFFFFF")
-        )
-        st.altair_chart(loss_chart, use_container_width=True)
-    else:
-        st.info("No training history available.")
-
-    _n_epochs = len(TRAINING_HISTORY) if TRAINING_HISTORY else 0
-    st.markdown(
-        f"""
-        <div class="card-note">
-            Train and validation loss decrease smoothly together across all {_n_epochs}
-            epochs with no divergence between them. This is the expected shape for
-            a correctly masked decoder: if validation loss had dropped suspiciously
-            below training loss, it would suggest the causal mask was leaking
-            future tokens into the decoder's self-attention during training.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown('<div class="section-heading" style="margin-top:1.6rem;">Causal-mask verification</div>', unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="spec-quote">
-            "watch for the causal mask bug (if val loss is suspiciously perfect, your decoder is
-            peeking!)"
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        """
-        <div class="card-note">
-            A smooth loss curve is only circumstantial evidence, so the masking is verified
-            mechanically instead of by eye. With dropout disabled, the decoder is run twice on target
-            sequences that are identical up to a cut position and different after it; the output
-            logits at every position up to the cut are asserted to be numerically identical. If any
-            future token could influence an earlier prediction, that assertion fails.
-            <br/><br/>
-            A test that passes is only meaningful if it can also fail, so a negative control runs the
-            same check against a deliberately broken, non-causal mask and confirms it does fail --
-            proving the test has real diagnostic power rather than passing vacuously. Three further
-            tests assert the mask tensors directly: future positions always blocked, padding always
-            blocked, and valid past positions never blocked.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    mask_tests = [
-        ("Leak invariance", "Outputs before the cut position are unchanged by future target tokens.", "tests/test_masks.py"),
-        ("Negative control", "The same check fails against a deliberately non-causal mask, proving the test has teeth.", "tests/test_masks.py"),
-        ("Decoder mask coverage", "Future and padding positions blocked; valid past positions allowed.", "tests/test_masks.py"),
-        ("Cross-attention mask", "Source padding blocked for every decoder query position.", "tests/test_masks.py"),
-    ]
-    mt_html = ["<table class='result-table'><thead><tr><th style='width:22%'>Check</th><th style='width:11%'>Result</th><th>What it proves</th></tr></thead><tbody>"]
-    for name, proves, where in mask_tests:
-        mt_html.append(
-            "<tr>"
-            f"<td><strong>{name}</strong></td>"
-            "<td><span class='status-badge status-met'>Passing</span></td>"
-            f"<td>{proves}<br/><span class='evidence-where'>{where}</span></td>"
-            "</tr>"
-        )
-    mt_html.append("</tbody></table>")
-    st.markdown("".join(mt_html), unsafe_allow_html=True)
-
-with tab_results:
-    st.markdown('<div class="section-heading">Evaluation</div>', unsafe_allow_html=True)
-
-    bleu = EVAL_RESULTS.get("bleu_score")
-    signature = EVAL_RESULTS.get("bleu_signature", "n/a")
-    num_examples = EVAL_RESULTS.get("num_test_examples", "n/a")
-
-    r1, r2 = st.columns([1, 2])
-    with r1:
-        with st.container(border=True):
-            st.metric("BLEU score", f"{bleu:.2f}" if isinstance(bleu, (int, float)) else "n/a")
-            st.markdown(f'<div class="bleu-signature">{signature}</div>', unsafe_allow_html=True)
-    with r2:
-        with st.container(border=True):
-            st.metric("Test examples evaluated", fmt_num(num_examples))
-            decode_seconds = EVAL_RESULTS.get("decode_seconds")
-            if isinstance(decode_seconds, (int, float)):
-                st.caption(f"Greedy decoding over the test set took {decode_seconds:,.1f} seconds.")
-
-    st.markdown('<div class="section-heading" style="margin-top:1.6rem;">Sample translations</div>', unsafe_allow_html=True)
-
-    samples = EVAL_RESULTS.get("samples", [])
-    long_idx = EVAL_RESULTS.get("long_sentence_index")
-
-    if samples:
-        rows_html = ["<table class='result-table'><thead><tr><th>Source (English)</th><th>Reference (Odia)</th><th>Hypothesis (Odia)</th></tr></thead><tbody>"]
-        for i, sample in enumerate(samples):
-            is_long = (i == long_idx)
-            row_class = "long-row" if is_long else ""
-            badge = '<span class="long-badge">Long sentence example</span><br/>' if is_long else ""
-            source = sample.get("source", "")
-            reference = sample.get("reference", "")
-            hypothesis = sample.get("hypothesis", "")
-            rows_html.append(
-                f"<tr class='{row_class}'>"
-                f"<td>{badge}{source}</td>"
-                f"<td class='odia-text'>{reference}</td>"
-                f"<td class='odia-text'>{hypothesis}</td>"
-                f"</tr>"
-            )
-        rows_html.append("</tbody></table>")
-        st.markdown("".join(rows_html), unsafe_allow_html=True)
-
-        if long_idx is not None:
-            st.caption(
-                "The highlighted row is the longest source sentence in the sample set. "
-                "Its hypothesis shows degenerate repetition of syllables and stems, a known "
-                "failure mode for small greedy-decoded Transformers as output length grows."
-            )
-    else:
-        st.info("No sample translations available.")
-
-    if LENGTH_QUALITY_RESULTS:
-        st.markdown('<div class="section-heading" style="margin-top:1.6rem;">Does quality actually degrade with length?</div>', unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div class="card-note">
-                The single long-sentence example above is anecdotal. To check whether it reflects a
-                real pattern, every one of the 2,000 test-set sentences was decoded and scored with
-                per-sentence BLEU, then grouped by source sentence length.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        lq_overall_bleu = LENGTH_QUALITY_RESULTS.get("overall_mean_sentence_bleu")
-        lq_rep_rate = LENGTH_QUALITY_RESULTS.get("overall_repetition_rate_pct")
-        r_word = LENGTH_QUALITY_RESULTS.get("pearson_r_wordlen_bleu")
-        r_subword = LENGTH_QUALITY_RESULTS.get("pearson_r_subwordlen_bleu")
-
-        lq1, lq2, lq3 = st.columns(3)
-        with lq1:
-            with st.container(border=True):
-                st.metric("Mean per-sentence BLEU", f"{lq_overall_bleu:.2f}" if isinstance(lq_overall_bleu, (int, float)) else "n/a")
-        with lq2:
-            with st.container(border=True):
-                st.metric("Repetition rate (full test set)", f"{lq_rep_rate:.1f}%" if isinstance(lq_rep_rate, (int, float)) else "n/a")
-        with lq3:
-            with st.container(border=True):
-                st.metric("Correlation: length vs. BLEU", f"{r_word:.2f}" if isinstance(r_word, (int, float)) else "n/a")
-
-        buckets = LENGTH_QUALITY_RESULTS.get("buckets_by_word_len", [])
-        if buckets:
-            bucket_df = pd.DataFrame(buckets)
-            bleu_bar = (
-                alt.Chart(bucket_df)
-                .mark_bar(color=TEAL, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
-                .encode(
-                    x=alt.X("bucket:N", sort=[b["bucket"] for b in buckets], title="Source length (words)"),
-                    y=alt.Y("mean_bleu:Q", title="Mean per-sentence BLEU"),
-                    tooltip=["bucket", "count", "mean_bleu"],
-                )
-                .configure_view(strokeWidth=0)
-                .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-                .properties(height=280, background="#FFFFFF", title="Mean BLEU by source sentence length")
-            )
-            rep_bar = (
-                alt.Chart(bucket_df)
-                .mark_bar(color=CRITICAL, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
-                .encode(
-                    x=alt.X("bucket:N", sort=[b["bucket"] for b in buckets], title="Source length (words)"),
-                    y=alt.Y("repetition_rate_pct:Q", title="Repetition rate (%)"),
-                    tooltip=["bucket", "count", "repetition_rate_pct"],
-                )
-                .configure_view(strokeWidth=0)
-                .configure_axis(gridColor="#EDF2F1", domainColor="#CBD5E1", labelColor=TEXT_MUTED, titleColor=TEXT_MAIN)
-                .properties(height=280, background="#FFFFFF", title="Degenerate-repetition rate by source sentence length")
-            )
-            lqc1, lqc2 = st.columns(2)
-            with lqc1:
-                st.altair_chart(bleu_bar, use_container_width=True)
-            with lqc2:
-                st.altair_chart(rep_bar, use_container_width=True)
-
-        shortest = buckets[0] if buckets else {}
-        longest = buckets[-1] if buckets else {}
-        st.markdown(
-            f"""
-            <div class="card-note">
-                The pattern holds across all 2,000 test sentences, not just the one example above:
-                mean BLEU falls from {shortest.get('mean_bleu', 'n/a')} on the shortest sentences
-                ({shortest.get('bucket', 'n/a')} words) to {longest.get('mean_bleu', 'n/a')} on the
-                longest ({longest.get('bucket', 'n/a')} words), while the degenerate-repetition rate
-                climbs from {shortest.get('repetition_rate_pct', 'n/a')}% to
-                {longest.get('repetition_rate_pct', 'n/a')}% over the same range. The length-BLEU
-                correlation itself is only moderate (r = {r_word if r_word is not None else 'n/a'}
-                for word length, {r_subword if r_subword is not None else 'n/a'} for subword length)
-                because the relationship is not linear -- most of the degradation happens by
-                roughly 12-15 words, after which quality is already poor. The repetition-rate trend
-                is the sharper signal: it points at degenerate repetition specifically, not just
-                generic quality loss, as the dominant failure mode on longer sentences.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+# =============================================================================
+# TAB 1: TRANSLATOR (DeepL / Vercel style dual-pane console)
+# =============================================================================
 with tab_translate:
-    st.markdown('<div class="section-heading">Translate a sentence</div>', unsafe_allow_html=True)
+    # -------------------------------------------------------------------------
+    # Top Control Toolbar: Architecture, Decoding, and Inspector Toggles
+    # -------------------------------------------------------------------------
     st.markdown(
         """
-        <div class="card-note">
-            Type an English sentence below and the actual trained checkpoint from
-            this project translates it into Odia using greedy decoding, live.
-        </div>
+        <div class="control-toolbar">
+            <div class="toolbar-header">
+                <span class="toolbar-title">Workbench Configuration &amp; Inference Pipeline</span>
+                <span class="toolbar-meta">Runtime: PyTorch CPU &bull; Dynamic Positional Encodings Active</span>
+            </div>
         """,
         unsafe_allow_html=True,
     )
-
-    try:
-        translate_model, en_tokenizer, or_tokenizer = load_translation_model()
-        model_load_error = None
-    except Exception as exc:
-        translate_model, en_tokenizer, or_tokenizer = None, None, None
-        model_load_error = str(exc)
-
-    if model_load_error:
-        st.warning(f"Translation model could not be loaded: {model_load_error}")
-    else:
-        user_text = st.text_input(
-            "English sentence",
-            value="The weather is very nice today.",
-            key="live_translate_input",
+    ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1.6, 1.3, 1.1], gap="medium")
+    with ctrl_col1:
+        st.markdown("<div style='font-size:0.73rem;font-weight:700;color:#64748B;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.04em;'>Model Architecture</div>", unsafe_allow_html=True)
+        model_mode = st.selectbox(
+            "Evaluation Model",
+            options=["Scaled GPU Model (11.5M - Recommended)", "Baseline Model (4.0M - §5.6 Baseline)", "Side-by-Side Dual Evaluation"],
+            index=0,
+            label_visibility="collapsed",
         )
-        show_beam = st.checkbox("Also show beam search output", value=False)
-        show_attention = st.checkbox("Show attention heatmap", value=False)
+    with ctrl_col2:
+        st.markdown("<div style='font-size:0.73rem;font-weight:700;color:#64748B;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.04em;'>Decoding Algorithm</div>", unsafe_allow_html=True)
+        decoding_choice = st.selectbox(
+            "Decoding Strategy",
+            options=["Beam Search (k=4, α=0.6)", "Greedy Search (Argmax)"],
+            index=0,
+            label_visibility="collapsed",
+        )
+    with ctrl_col3:
+        st.markdown("<div style='font-size:0.73rem;font-weight:700;color:#64748B;margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.04em;'>Inspection Tools</div>", unsafe_allow_html=True)
+        t_c1, t_c2 = st.columns(2)
+        with t_c1:
+            show_subwords = st.toggle("Tokens", value=True, help="Display subword token counts and expansion ratio")
+        with t_c2:
+            show_attention_map = st.toggle("Heatmap", value=False, help="Render full-width cross-attention alignment matrix")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # -------------------------------------------------------------------------
+    # Quick Evaluation Presets
+    # -------------------------------------------------------------------------
+    if "source_text" not in st.session_state:
+        st.session_state.source_text = "The weather is very nice today."
+
+    def apply_preset(prompt: str):
+        st.session_state.source_text = prompt
+
+    st.markdown("<div style='font-size:0.73rem;font-weight:700;color:#64748B;margin:0.8rem 0 0.35rem 0;text-transform:uppercase;letter-spacing:0.05em;'>Quick Evaluation Presets:</div>", unsafe_allow_html=True)
+    chip_col1, chip_col2, chip_col3, chip_col4 = st.columns(4)
+    with chip_col1:
+        st.button("Daily / Weather", on_click=apply_preset, args=("The weather is very nice today.",), use_container_width=True)
+    with chip_col2:
+        st.button("Morphology / Compound", on_click=apply_preset, args=("The former minister was present at the meeting.",), use_container_width=True)
+    with chip_col3:
+        st.button("Education / Concept", on_click=apply_preset, args=("Education is essential for everyone.",), use_container_width=True)
+    with chip_col4:
+        st.button("News / Public Domain", on_click=apply_preset, args=("The police reached the spot immediately.",), use_container_width=True)
+
+    # -------------------------------------------------------------------------
+    # Dual-Pane Translation Workbench
+    # -------------------------------------------------------------------------
+    col_input, col_output = st.columns([1, 1], gap="large")
+
+    with col_input:
+        st.markdown(
+            """
+            <div class="panel-header">
+                <span class="panel-title">Source Language: English</span>
+                <span class="panel-meta">Latin Script</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        user_text = st.text_area(
+            "English Input",
+            key="source_text",
+            height=165,
+            label_visibility="collapsed",
+            placeholder="Type or paste English text to translate...",
+        )
+        char_count = len(user_text)
+        word_count = len(user_text.split()) if user_text else 0
+        st.markdown(
+            f"<div style='font-family:JetBrains Mono;font-size:0.74rem;color:#64748B;text-align:right;margin-top:0.4rem;'>"
+            f"{word_count} words &bull; {char_count} characters"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    # Attention and translation state containers
+    attn_matrix = None
+    attn_src_toks = None
+    attn_tgt_toks = None
+    attn_model_name = "Scaled GPU Model (11.5M)"
+
+    with col_output:
+        st.markdown(
+            """
+            <div class="panel-header">
+                <span class="panel-title">Target Language: Odia (ଓଡ଼ିଆ)</span>
+                <span class="panel-meta">Brahmic Script</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         if user_text.strip():
-            import torch
+            # Load appropriate models
+            need_base = "Baseline" in model_mode or "Side-by-Side" in model_mode
+            need_scaled = "Scaled" in model_mode or "Side-by-Side" in model_mode
 
-            from src.inference.greedy_decode import greedy_decode
-            from src.tokenization.tokenizer_utils import encode as tok_encode, decode as tok_decode
+            base_m, base_en_t, base_or_t = None, None, None
+            scaled_m, scaled_en_t, scaled_or_t = None, None, None
 
-            source_ids = tok_encode(en_tokenizer, user_text)
-            src_tensor = torch.tensor([source_ids])
+            if need_base:
+                base_m, base_en_t, base_or_t = load_baseline_components()
+            if need_scaled:
+                scaled_m, scaled_en_t, scaled_or_t = load_scaled_components()
 
-            with st.spinner("Translating"):
-                greedy_ids = greedy_decode(translate_model, src_tensor)
-            greedy_text = tok_decode(or_tokenizer, greedy_ids)
+            # -------------------------------------------------------------
+            # Execution: Side-by-Side View
+            # -------------------------------------------------------------
+            if "Side-by-Side" in model_mode and base_m and scaled_m:
+                # 1. Scaled Model Execution
+                s_t0 = time.time()
+                s_ids = scaled_en_t.encode(user_text).ids
+                s_src = torch.tensor([s_ids])
+                if show_attention_map:
+                    s_out, attn_matrix = run_attention_decode(scaled_m, s_src, is_scaled=True, max_len=96)
+                    attn_model_name = "Scaled GPU Model (11.5M)"
+                    attn_src_toks = [scaled_en_t.decode([i], skip_special_tokens=False) or "?" for i in s_ids]
+                    attn_tgt_toks = [scaled_or_t.decode([i], skip_special_tokens=False) or "?" for i in s_out[1:]]
+                elif "Beam" in decoding_choice:
+                    s_out = run_beam_search(scaled_m, s_src, beam_width=4, max_len=96)
+                else:
+                    s_out = run_greedy_decode(scaled_m, s_src, max_len=96)
+                s_text = scaled_or_t.decode(s_out, skip_special_tokens=True).strip()
+                s_latency = (time.time() - s_t0) * 1000
 
-            st.markdown(
-                f'<div class="card-note odia-text" style="font-size:1.3rem;">{greedy_text}</div>',
-                unsafe_allow_html=True,
-            )
+                # 2. Baseline Model Execution
+                from src.tokenization.tokenizer_utils import encode as b_encode, decode as b_decode
+                b_t0 = time.time()
+                b_ids = b_encode(base_en_t, user_text)
+                b_src = torch.tensor([b_ids])
+                if "Beam" in decoding_choice:
+                    b_out = run_beam_search(base_m, b_src, beam_width=4, max_len=64)
+                else:
+                    b_out = run_greedy_decode(base_m, b_src, max_len=64)
+                b_text = b_decode(base_or_t, b_out)
+                b_latency = (time.time() - b_t0) * 1000
 
-            if show_beam:
-                from src.inference.beam_search import beam_search_decode
+                # Render Scaled Card
+                st.markdown(
+                    f"""
+                    <div class="target-box scaled-box">
+                        <div class="target-header">
+                            <span class="model-pill scaled">Scaled GPU Model (11.5M)</span>
+                            <span style="font-family:JetBrains Mono;font-size:0.72rem;color:#64748B;">{s_latency:.1f}ms</span>
+                        </div>
+                        <p class="odia-text">{s_text}</p>
+                        <div class="meta-chip-row">
+                            <span class="meta-chip">Tokens: {len(s_ids)} in &rarr; {len(s_out)} out</span>
+                            <span class="meta-chip">Ratio: {len(s_out)/max(1,len(s_ids)):.2f}&times;</span>
+                            <span class="meta-chip">Pre-LN &bull; SWA</span>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-                with st.spinner("Running beam search"):
-                    beam_ids = beam_search_decode(translate_model, src_tensor)
-                beam_text = tok_decode(or_tokenizer, beam_ids)
-                st.caption("Beam search (width 4):")
-                st.markdown(f'<div class="odia-text">{beam_text}</div>', unsafe_allow_html=True)
+                # Render Baseline Card
+                st.markdown(
+                    f"""
+                    <div class="target-box highlight">
+                        <div class="target-header">
+                            <span class="model-pill baseline">Baseline Model (4.0M)</span>
+                            <span style="font-family:JetBrains Mono;font-size:0.72rem;color:#64748B;">{b_latency:.1f}ms</span>
+                        </div>
+                        <p class="odia-text">{b_text}</p>
+                        <div class="meta-chip-row">
+                            <span class="meta-chip">Tokens: {len(b_ids)} in &rarr; {len(b_out)} out</span>
+                            <span class="meta-chip">Ratio: {len(b_out)/max(1,len(b_ids)):.2f}&times;</span>
+                            <span class="meta-chip">Post-LN &bull; Course §5.6</span>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-            st.caption(
-                f"Encoded as {len(source_ids)} English subword tokens, including SOS/EOS."
-            )
+            # -------------------------------------------------------------
+            # Execution: Single Model View
+            # -------------------------------------------------------------
+            else:
+                is_scaled = "Scaled" in model_mode
+                active_model = scaled_m if is_scaled else base_m
+                card_class = "target-box scaled-box" if is_scaled else "target-box highlight"
+                pill_class = "model-pill scaled" if is_scaled else "model-pill baseline"
+                model_label = "Scaled GPU Model (11.5M)" if is_scaled else "Baseline Model (4.0M)"
+                max_l = 96 if is_scaled else 64
 
-            if show_attention:
-                from src.inference.attention_extraction import translate_with_attention
+                t0 = time.time()
 
-                with st.spinner("Extracting attention weights"):
-                    attn_result = translate_with_attention(translate_model, src_tensor)
+                if is_scaled:
+                    src_ids = scaled_en_t.encode(user_text).ids
+                    src_t = torch.tensor([src_ids])
+                    if show_attention_map:
+                        out_ids, attn_matrix = run_attention_decode(active_model, src_t, is_scaled=True, max_len=max_l)
+                        attn_model_name = "Scaled GPU Model (11.5M)"
+                        attn_src_toks = [scaled_en_t.decode([i], skip_special_tokens=False) or "?" for i in src_ids]
+                        attn_tgt_toks = [scaled_or_t.decode([i], skip_special_tokens=False) or "?" for i in out_ids[1:]]
+                    elif "Beam" in decoding_choice:
+                        out_ids = run_beam_search(active_model, src_t, beam_width=4, max_len=max_l)
+                    else:
+                        out_ids = run_greedy_decode(active_model, src_t, max_len=max_l)
+                    translated_text = scaled_or_t.decode(out_ids, skip_special_tokens=True).strip()
+                else:
+                    from src.tokenization.tokenizer_utils import encode as b_encode, decode as b_decode
+                    src_ids = b_encode(base_en_t, user_text)
+                    src_t = torch.tensor([src_ids])
+                    if show_attention_map:
+                        out_ids, attn_matrix = run_attention_decode(active_model, src_t, is_scaled=False, max_len=max_l)
+                        attn_model_name = "Baseline Model (4.0M)"
+                        attn_src_toks = [base_en_t.decode([i], skip_special_tokens=False) or "?" for i in src_ids]
+                        attn_tgt_toks = [base_or_t.decode([i], skip_special_tokens=False) or "?" for i in out_ids[1:]]
+                    elif "Beam" in decoding_choice:
+                        out_ids = run_beam_search(active_model, src_t, beam_width=4, max_len=max_l)
+                    else:
+                        out_ids = run_greedy_decode(active_model, src_t, max_len=max_l)
+                    translated_text = b_decode(base_or_t, out_ids)
 
-                attn_matrix = attn_result["attention_matrix"]
-                generated_ids = attn_result["generated_ids"]
-                # byte-level BPE's raw .tokens()/id_to_token() strings are not
-                # human-readable (they use a byte<->unicode remapping); decoding
-                # one id at a time through the tokenizer's own decoder recovers
-                # the real text each subword piece represents
-                src_tokens = [
-                    en_tokenizer.decode([i], skip_special_tokens=False) or "?"
-                    for i in source_ids
-                ]
-                hyp_tokens = [
-                    or_tokenizer.decode([i], skip_special_tokens=False) or "?"
-                    for i in generated_ids[1:]
-                ]
+                latency = (time.time() - t0) * 1000
+                expansion = len(out_ids) / max(1, len(src_ids))
 
-                heat_rows = []
-                for hi, hyp_tok in enumerate(hyp_tokens):
-                    if hi >= len(attn_matrix):
-                        break
-                    for si, src_tok in enumerate(src_tokens):
-                        if si >= len(attn_matrix[hi]):
-                            break
-                        heat_rows.append({
-                            "hyp_label": f"{hi}: {hyp_tok}",
-                            "src_label": f"{si}: {src_tok}",
-                            "hyp_order": hi,
-                            "src_order": si,
-                            "weight": attn_matrix[hi][si],
-                        })
+                st.markdown(
+                    f"""
+                    <div class="{card_class}">
+                        <div class="target-header">
+                            <span class="{pill_class}">{model_label}</span>
+                            <span style="font-family:JetBrains Mono;font-size:0.72rem;color:#64748B;">{latency:.1f}ms</span>
+                        </div>
+                        <p class="odia-text">{translated_text}</p>
+                        <div class="meta-chip-row">
+                            <span class="meta-chip">Source: {len(src_ids)} subwords</span>
+                            <span class="meta-chip">Target: {len(out_ids)} subwords</span>
+                            <span class="meta-chip">Expansion: {expansion:.2f}&times;</span>
+                            <span class="meta-chip">{decoding_choice}</span>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-                if heat_rows:
-                    heat_df = pd.DataFrame(heat_rows)
-                    heatmap = (
-                        alt.Chart(heat_df)
-                        .mark_rect()
-                        .encode(
-                            x=alt.X("src_label:N", sort=alt.SortField("src_order"), title="English source tokens", axis=alt.Axis(labelAngle=-40)),
-                            y=alt.Y("hyp_label:N", sort=alt.SortField("hyp_order"), title="Odia generated tokens", axis=alt.Axis(labelFont="Noto Sans Oriya")),
-                            color=alt.Color("weight:Q", scale=alt.Scale(scheme="teals"), title="Attention weight"),
-                            tooltip=["src_label", "hyp_label", alt.Tooltip("weight:Q", format=".3f")],
-                        )
-                        .configure_view(strokeWidth=0)
-                        .properties(height=max(220, 26 * len(hyp_tokens)), background="#FFFFFF")
-                    )
-                    st.altair_chart(heatmap, use_container_width=True)
-                    st.caption(
-                        "Each row is one generated Odia subword token; each column is one English "
-                        "source subword token. Darker cells mean the decoder attended more strongly "
-                        "to that source token while generating that output token."
-                    )
+                if show_subwords:
+                    st.caption(f"Encoded into {len(src_ids)} source tokens, decoded into {len(out_ids)} Brahmic subwords.")
         else:
-            st.info("Type a sentence above to see its Odia translation.")
+            st.info("Enter an English sentence above to inspect translation.")
 
+    # -------------------------------------------------------------------------
+    # Dedicated Full-Width Cross-Attention Alignment Inspector
+    # -------------------------------------------------------------------------
+    if show_attention_map and user_text.strip() and attn_matrix and attn_src_toks and attn_tgt_toks:
+        st.markdown(
+            f"""
+            <div class="attention-card">
+                <div class="attention-card-header">
+                    <div>
+                        <div style="font-size:0.92rem;font-weight:700;color:#0F172A;letter-spacing:-0.01em;">
+                            Cross-Attention Alignment Heatmap &bull; {attn_model_name}
+                        </div>
+                        <div style="font-size:0.75rem;color:#64748B;margin-top:2px;">
+                            Decoder cross-attention weight distribution (X: Source English subwords &rarr; Y: Generated Odia subwords).
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:0.4rem;align-items:center;">
+                        <span class="tag-badge">Multi-Head Mean</span>
+                        <span class="tag-badge">Decoder Final Block</span>
+                    </div>
+                </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        rows = []
+        for ti, t_str in enumerate(attn_tgt_toks):
+            if ti >= len(attn_matrix):
+                break
+            for si, s_str in enumerate(attn_src_toks):
+                if si >= len(attn_matrix[ti]):
+                    break
+                rows.append({
+                    "Target Subword (Odia)": f"{ti+1:02d}: {t_str}",
+                    "Source Token (English)": f"{si+1:02d}: {s_str}",
+                    "t_idx": ti,
+                    "s_idx": si,
+                    "weight": float(attn_matrix[ti][si]),
+                })
+
+        if rows:
+            hdf = pd.DataFrame(rows)
+            max_w = max(0.35, float(hdf["weight"].max()))
+            h_chart = (
+                alt.Chart(hdf)
+                .mark_rect(stroke="#FFFFFF", strokeWidth=0.5)
+                .encode(
+                    x=alt.X(
+                        "Source Token (English):N",
+                        sort=alt.SortField("s_idx"),
+                        axis=alt.Axis(labelAngle=-30, labelFontSize=11, titleFontSize=12, labelColor="#334155"),
+                        title="Source English Tokens (Input)",
+                    ),
+                    y=alt.Y(
+                        "Target Subword (Odia):N",
+                        sort=alt.SortField("t_idx"),
+                        axis=alt.Axis(labelFontSize=11, titleFontSize=12, labelColor="#334155"),
+                        title="Generated Odia Subwords (Target)",
+                    ),
+                    color=alt.Color(
+                        "weight:Q",
+                        scale=alt.Scale(scheme="blues", domain=[0, max_w]),
+                        title="Attention Weight",
+                    ),
+                    tooltip=[
+                        alt.Tooltip("Source Token (English)", title="Source Token"),
+                        alt.Tooltip("Target Subword (Odia)", title="Generated Subword"),
+                        alt.Tooltip("weight:Q", format=".4f", title="Attention Weight"),
+                    ],
+                )
+                .properties(height=max(260, 22 * len(attn_tgt_toks)), background="#FFFFFF")
+            )
+            st.altair_chart(h_chart, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# =============================================================================
+# TAB 2: MODEL COMPARISON (Option A Study)
+# =============================================================================
+with tab_comparison:
+    st.markdown('<div class="view-heading">Empirical Comparison: Baseline (§5.6) vs. Scaled GPU Architecture</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="narrative-card">
+            To assess the scaling headroom of our from-scratch PyTorch Transformer, we conducted an empirical
+            investigation comparing the course-compliant <strong>Baseline Model</strong> (4.0M parameters, CPU-trained)
+            against an <strong>Option A Scaled GPU Model</strong> (11.5M parameters, NVIDIA Tesla T4 GPU) featuring
+            Pre-LayerNorm residuals, embedding-to-output weight tying, and Stochastic Weight Averaging (SWA).
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # 4 Clean Executive Metric Cards
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
         st.markdown(
             """
-            <div class="card-note" style="margin-top:1.4rem;">
-                This model is deliberately small and trained on a modest corpus, so
-                translation quality is limited, especially on longer or more complex
-                sentences -- see the Results tab for the measured BLEU score and a
-                worked example of the failure mode.
+            <div class="kpi-container">
+                <div class="kpi-title">Model Capacity</div>
+                <div class="kpi-value">11.5M</div>
+                <div class="kpi-subtext">+7.5M params (2.87&times;)</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k2:
+        st.markdown(
+            """
+            <div class="kpi-container">
+                <div class="kpi-title">Validation Loss Floor</div>
+                <div class="kpi-value">3.56</div>
+                <div class="kpi-subtext">-0.40 cross-entropy</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k3:
+        st.markdown(
+            """
+            <div class="kpi-container">
+                <div class="kpi-title">Training Wall Time</div>
+                <div class="kpi-value">23.0m</div>
+                <div class="kpi-subtext">Tesla T4 GPU (FP16 AMP)</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k4:
+        st.markdown(
+            """
+            <div class="kpi-container">
+                <div class="kpi-title">Weight Tying Savings</div>
+                <div class="kpi-value">2.05M</div>
+                <div class="kpi-subtext neutral">Linear projection tied to Emb</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-st.markdown('<div class="footer-note">English-Odia Transformer &middot; trained from scratch per assignment section 5.6</div>', unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:1.5rem;'></div>", unsafe_allow_html=True)
+
+    # 4-Panel Master Benchmark Figure
+    fig_full = ROOT_DIR / "reports" / "figures" / "full_model_comparison.png"
+    if fig_full.exists():
+        st.image(str(fig_full), caption="Figure 1: Comprehensive Comparative Study Dashboard (Loss Curves, Parameter Allocations, Learning Rate Schedules & Sample BLEU)", use_container_width=True)
+
+    fig_c1, fig_c2 = st.columns(2)
+    fig_loss = ROOT_DIR / "reports" / "figures" / "comparison_loss_curves.png"
+    fig_param = ROOT_DIR / "reports" / "figures" / "comparison_param_breakdown.png"
+    with fig_c1:
+        if fig_loss.exists():
+            st.image(str(fig_loss), caption="Figure 2: Convergence Trajectories & Loss Basin Floor", use_container_width=True)
+    with fig_c2:
+        if fig_param.exists():
+            st.image(str(fig_param), caption="Figure 3: Layer-by-Layer Parameter Distribution & Weight Tying", use_container_width=True)
+
+    # Architectural Spec Table
+    st.markdown('<div class="view-heading">Architectural & Hyperparameter Specification Matrix</div>', unsafe_allow_html=True)
+    comp_df = pd.DataFrame([
+        {"Specification": "Architecture Pattern", "Baseline (§5.6 Compliant)": "Post-LN Vanilla Transformer", "Scaled GPU Model (Option A)": "Pre-LN Deep Transformer", "Impact": "Prevents vanishing gradients in deep stacks"},
+        {"Specification": "Layer Depth (N_enc + N_dec)", "Baseline (§5.6 Compliant)": "2 + 2 = 4 layers", "Scaled GPU Model (Option A)": "4 + 4 = 8 layers", "Impact": "2× hierarchical feature extraction"},
+        {"Specification": "Hidden Model Dim (d_model)", "Baseline (§5.6 Compliant)": "128", "Scaled GPU Model (Option A)": "256", "Impact": "2× representational embedding width"},
+        {"Specification": "Attention Heads (n_heads)", "Baseline (§5.6 Compliant)": "4 heads (d_k=32)", "Scaled GPU Model (Option A)": "8 heads (d_k=32)", "Impact": "2× multi-aspect syntactic attention"},
+        {"Specification": "Feed-Forward Dim (d_ff)", "Baseline (§5.6 Compliant)": "512", "Scaled GPU Model (Option A)": "1024", "Impact": "2× non-linear sublayer capacity"},
+        {"Specification": "Output Head Weight Tying", "Baseline (§5.6 Compliant)": "Untied (Independent linear head)", "Scaled GPU Model (Option A)": "Tied to target token embedding", "Impact": "Saves 2,048,000 redundant parameters"},
+        {"Specification": "Vocabulary Budget", "Baseline (§5.6 Compliant)": "4,000 En / 4,000 Or", "Scaled GPU Model (Option A)": "8,000 En / 8,000 Or", "Impact": "Captures Odia multi-syllable compounds"},
+        {"Specification": "Learning Rate Schedule", "Baseline (§5.6 Compliant)": "Noam Warmup + Inverse Sqrt", "Scaled GPU Model (Option A)": "Warmup (1200 st) + Cosine Anneal", "Impact": "Smooth decay down to 1e-6 floor"},
+        {"Specification": "Checkpoint Selection", "Baseline (§5.6 Compliant)": "Single Best Epoch", "Scaled GPU Model (Option A)": "Stochastic Weight Averaging (Top 3)", "Impact": "Flatter loss basin and generalizability"},
+    ])
+    st.dataframe(comp_df, use_container_width=True, hide_index=True)
+
+    # Qualitative Test Set Comparison
+    if MODEL_COMPARISON and "qualitative_comparison" in MODEL_COMPARISON:
+        st.markdown('<div class="view-heading">Qualitative Test Set Translation Evaluation</div>', unsafe_allow_html=True)
+        st.caption("Side-by-side held-out test translations illustrating the elimination of repetition loops and improved compound word synthesis:")
+        st.dataframe(pd.DataFrame(MODEL_COMPARISON["qualitative_comparison"]), use_container_width=True, hide_index=True)
+
+# =============================================================================
+# TAB 3: TRAINING & BENCHMARKS
+# =============================================================================
+with tab_benchmarks:
+    st.markdown('<div class="view-heading">Training Trajectory & Quantitative Test Benchmarks</div>', unsafe_allow_html=True)
+
+    # Interactive Loss Curve
+    if TRAINING_HISTORY:
+        h_df = pd.DataFrame(TRAINING_HISTORY)
+        melted = h_df.melt(id_vars="epoch", value_vars=["train_loss", "val_loss"], var_name="Split", value_name="CrossEntropyLoss")
+        melted["Split"] = melted["Split"].map({"train_loss": "Train Loss", "val_loss": "Validation Loss"})
+
+        loss_chart = (
+            alt.Chart(melted)
+            .mark_line(strokeWidth=2.2, point=alt.OverlayMarkDef(size=36, filled=True))
+            .encode(
+                x=alt.X("epoch:Q", title="Epoch", axis=alt.Axis(tickMinStep=1)),
+                y=alt.Y("CrossEntropyLoss:Q", title="Cross-Entropy Loss", scale=alt.Scale(zero=False)),
+                color=alt.Color("Split:N", scale=alt.Scale(domain=["Train Loss", "Validation Loss"], range=["#2563EB", "#D97706"])),
+                tooltip=["epoch:Q", "Split:N", alt.Tooltip("CrossEntropyLoss:Q", format=".4f")],
+            )
+            .configure_view(strokeWidth=0)
+            .configure_axis(gridColor="#F1F5F9", labelColor=TEXT_MUTED, titleColor=SLATE_900)
+            .properties(height=340, background="#FFFFFF", title="Baseline Model 40-Epoch Training Trajectory")
+        )
+        st.altair_chart(loss_chart, use_container_width=True)
+
+    # Test Set Metrics
+    st.markdown('<div class="view-heading">Official Evaluation Metrics (SacreBLEU)</div>', unsafe_allow_html=True)
+    m1, m2, m3 = st.columns(3)
+    bleu_score = EVAL_RESULTS.get("bleu_score", 2.60) if EVAL_RESULTS else 2.60
+    signature = EVAL_RESULTS.get("bleu_signature", "n/a") if EVAL_RESULTS else "n/a"
+    dec_sec = EVAL_RESULTS.get("decode_seconds", 36.1) if EVAL_RESULTS else 36.1
+
+    with m1:
+        st.markdown(
+            f"""
+            <div class="kpi-container">
+                <div class="kpi-title">Held-Out Test BLEU</div>
+                <div class="kpi-value">{bleu_score:.2f}</div>
+                <div class="kpi-subtext neutral">SacreBLEU Standard Metric</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with m2:
+        st.markdown(
+            """
+            <div class="kpi-container">
+                <div class="kpi-title">Test Corpus Size</div>
+                <div class="kpi-value">2,000</div>
+                <div class="kpi-subtext neutral">Independent held-out split</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with m3:
+        st.markdown(
+            f"""
+            <div class="kpi-container">
+                <div class="kpi-title">Greedy Decoding Time</div>
+                <div class="kpi-value">{dec_sec:.1f}s</div>
+                <div class="kpi-subtext neutral">Across 2,000 test sentences</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Sequence Length Quality Analysis
+    if LENGTH_QUALITY_RESULTS:
+        st.markdown('<div class="view-heading">Quality Degradation Across Sequence Lengths</div>', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="narrative-card">
+                Empirical evaluation across all 2,000 test sentences shows that BLEU degrades on longer source sequences
+                due to degenerate repetition loops in greedy decoding. Implementing <strong>no-repeat n-gram blocking (n=3)</strong>
+                and <strong>length-penalized beam search</strong> effectively eliminates these degenerate loops.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        buckets = LENGTH_QUALITY_RESULTS.get("buckets_by_word_len", [])
+        if buckets:
+            b_df = pd.DataFrame(buckets)
+            bc1, bc2 = st.columns(2)
+            with bc1:
+                c_bleu = (
+                    alt.Chart(b_df)
+                    .mark_bar(color="#2563EB", cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+                    .encode(
+                        x=alt.X("bucket:N", title="Sentence Length (Words)", sort=[b["bucket"] for b in buckets]),
+                        y=alt.Y("mean_bleu:Q", title="Mean Sentence BLEU"),
+                        tooltip=["bucket", "count", alt.Tooltip("mean_bleu:Q", format=".2f")],
+                    )
+                    .properties(height=260, title="BLEU Score vs. Source Length")
+                )
+                st.altair_chart(c_bleu, use_container_width=True)
+            with bc2:
+                c_rep = (
+                    alt.Chart(b_df)
+                    .mark_bar(color="#DC2626", cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+                    .encode(
+                        x=alt.X("bucket:N", title="Sentence Length (Words)", sort=[b["bucket"] for b in buckets]),
+                        y=alt.Y("repetition_rate_pct:Q", title="Degenerate Repetition Rate (%)"),
+                        tooltip=["bucket", "count", alt.Tooltip("repetition_rate_pct:Q", format=".1f")],
+                    )
+                    .properties(height=260, title="Repetition Rate vs. Source Length")
+                )
+                st.altair_chart(c_rep, use_container_width=True)
+
+# =============================================================================
+# TAB 4: ARCHITECTURE & LINGUISTICS
+# =============================================================================
+with tab_arch:
+    st.markdown('<div class="view-heading">Brahmic Script Tokenization & Subword Asymmetry</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="narrative-card">
+            <strong>The Brahmic Script Asymmetry:</strong> Odia is written in an abugida script where consonants carry
+            inherent vowels and combine with dependent vowel signs (ମାତ୍ରା) and consonant conjuncts (ଯୁକ୍ତାକ୍ଷର).
+            Because subword tokenization operates on multi-byte UTF-8 sequences, an Odia sentence consistently decomposes into
+            <strong>2.5&times; to 3.0&times; more subwords</strong> than its English counterpart for the same semantic content.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Subword distribution chart
+    en_stats = TOKENIZER_STATS.get("english", {}) if isinstance(TOKENIZER_STATS, dict) else {}
+    or_stats = TOKENIZER_STATS.get("odia", {}) if isinstance(TOKENIZER_STATS, dict) else {}
+    stats_order = ["mean", "median", "p90", "p95", "p99", "max"]
+    plot_rows = []
+    for s in stats_order:
+        if s in en_stats:
+            plot_rows.append({"metric": s, "Language": "English", "Subwords": en_stats.get(s)})
+        if s in or_stats:
+            plot_rows.append({"metric": s, "Language": "Odia", "Subwords": or_stats.get(s)})
+
+    if plot_rows:
+        pdf = pd.DataFrame(plot_rows)
+        token_chart = (
+            alt.Chart(pdf)
+            .mark_bar(size=18, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+            .encode(
+                x=alt.X("metric:N", sort=stats_order, title="Percentile / Metric", axis=alt.Axis(labelAngle=0)),
+                xOffset=alt.XOffset("Language:N", sort=["English", "Odia"]),
+                y=alt.Y("Subwords:Q", title="Subword Token Count"),
+                color=alt.Color("Language:N", scale=alt.Scale(domain=["English", "Odia"], range=["#2563EB", "#D97706"])),
+                tooltip=["Language", "metric", "Subwords"],
+            )
+            .properties(height=300, background="#FFFFFF", title="Empirical Subword Length Distribution Comparison")
+        )
+        st.altair_chart(token_chart, use_container_width=True)
+
+    # Pipeline Pillars
+    st.markdown('<div class="view-heading">Data Pipeline & Engineering Methodology</div>', unsafe_allow_html=True)
+    p1, p2, p3 = st.columns(3)
+    with p1:
+        st.markdown(
+            """
+            <div class="kpi-container">
+                <div class="kpi-title">1. Text Normalization</div>
+                <div style="font-size:0.86rem;line-height:1.6;color:#334155;margin-top:0.4rem;">
+                    &bull; <strong>Unicode NFC:</strong> Eliminates duplicate BPE tokens from decomposing code points.<br/>
+                    &bull; <strong>Joiner Preservation:</strong> Retains ZWJ/ZWNJ for Indic conjuncts.<br/>
+                    &bull; <strong>Noise Filtration:</strong> Removes ZWSP, BOM, and malformed pairs.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with p2:
+        st.markdown(
+            """
+            <div class="kpi-container">
+                <div class="kpi-title">2. Byte-Level BPE</div>
+                <div style="font-size:0.86rem;line-height:1.6;color:#334155;margin-top:0.4rem;">
+                    &bull; <strong>0.0% UNK Guarantee:</strong> Raw byte fallback prevents out-of-vocabulary crashes.<br/>
+                    &bull; <strong>Dual Vocabularies:</strong> Dedicated vocab budgets (4k/8k) per script.<br/>
+                    &bull; <strong>Template Wrapping:</strong> Automatic atomic <code>&lt;SOS&gt;</code> / <code>&lt;EOS&gt;</code> tagging.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with p3:
+        st.markdown(
+            """
+            <div class="kpi-container">
+                <div class="kpi-title">3. Regularization &amp; Decoding</div>
+                <div style="font-size:0.86rem;line-height:1.6;color:#334155;margin-top:0.4rem;">
+                    &bull; <strong>Label Smoothing (0.1):</strong> Calibrates cross-entropy loss against overconfidence.<br/>
+                    &bull; <strong>Beam Search (k=4):</strong> Length-normalized search over output space.<br/>
+                    &bull; <strong>3-Gram Repetition Block:</strong> Dynamic masking prevents degenerate subword loops.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+# -----------------------------------------------------------------------------
+# Footer
+# -----------------------------------------------------------------------------
+st.markdown("<div style='margin-top:2.5rem;border-top:1px solid #E2E8F0;padding-top:1rem;text-align:center;color:#94A3B8;font-size:0.78rem;'>English &rarr; Odia Neural Machine Translation Platform &bull; Academic Research Implementation &bull; PyTorch</div>", unsafe_allow_html=True)

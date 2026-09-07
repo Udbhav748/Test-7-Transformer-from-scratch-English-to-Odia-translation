@@ -90,3 +90,31 @@ LENGTH_QUALITY_RESULTS = _load_json(REPORTS_DIR / "length_quality_analysis.json"
 
 _requirements_path = REPORTS_DIR / "requirements_coverage.json"
 REQUIREMENTS_COVERAGE = _load_json(_requirements_path) if _requirements_path.exists() else {}
+
+# Scaled Model (Option A) Artifacts
+_scaled_history_path = REPORTS_DIR / "scaled_training_history.json"
+SCALED_TRAINING_HISTORY = _load_json(_scaled_history_path) if _scaled_history_path.exists() else []
+
+_scaled_eval_path = REPORTS_DIR / "scaled_eval_results.json"
+SCALED_EVAL_RESULTS = _load_json(_scaled_eval_path) if _scaled_eval_path.exists() else {}
+
+_model_comp_path = REPORTS_DIR / "model_comparison.json"
+MODEL_COMPARISON = _load_json(_model_comp_path) if _model_comp_path.exists() else {}
+
+SCALED_HYPERPARAMS = {
+    "d_model": 256,
+    "n_heads": 8,
+    "d_ff": 1024,
+    "n_encoder_layers": 4,
+    "n_decoder_layers": 4,
+    "dropout": 0.1,
+    "tie_output_projection": True,
+    "en_vocab_size": 8000,
+    "or_vocab_size": 8000,
+    "batch_size_effective": 256,
+    "num_epochs": 25,
+    "warmup_steps": 1200,
+    "max_len": 96,
+    "total_params": 11_469_824,
+    "layer_norm_style": "pre-norm (LayerNorm -> Sublayer -> Residual)",
+}
