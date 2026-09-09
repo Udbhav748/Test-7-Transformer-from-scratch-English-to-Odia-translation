@@ -7,7 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-NB_PATH = REPO_ROOT / "kaggle_push" / "en_or_transformer.ipynb"
+NB_PATH = REPO_ROOT / "notebooks" / "kaggle" / "en_or_transformer.ipynb"
 
 # Dependency order: every module here is read verbatim from disk (the exact
 # code that already passed local unit tests) and reconstructed byte-for-byte

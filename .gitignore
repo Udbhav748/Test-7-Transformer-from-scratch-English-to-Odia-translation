@@ -8,8 +8,9 @@ checkpoints/
 reports/figures/
 *.log
 .ipynb_checkpoints/
-kaggle_push/run_output/
-kaggle_push/run_output_scaled/
-kaggle_push/pulled/
-kaggle_push/error_log/
+notebooks/kaggle/run_output/
+notebooks/kaggle/run_output_scaled/
+notebooks/kaggle/pulled/
+notebooks/kaggle/error_log/
 scratch/
+tools/

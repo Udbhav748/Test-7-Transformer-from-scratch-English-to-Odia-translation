@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import altair as alt
+import numpy as np
 import pandas as pd
 import streamlit as st
 import torch
@@ -722,7 +723,7 @@ st.markdown(
     <div class="app-navbar">
         <div class="app-title-group">
             <h1>English &rarr; Odia Neural Machine Translation</h1>
-            <p>From-scratch PyTorch Sequence-to-Sequence Transformer research platform &bull; AI4Bharat Samanantar Corpus</p>
+            <p>using Transformer (Seq2Seq, Encoder-Decoder)</p>
         </div>
         <div class="nav-badges">
             <span class="status-indicator"><span class="status-dot"></span>Models Ready</span>
@@ -757,8 +758,7 @@ with tab_translate:
         """
         <div class="control-toolbar">
             <div class="toolbar-header">
-                <span class="toolbar-title">Workbench Configuration &amp; Inference Pipeline</span>
-                <span class="toolbar-meta">Runtime: PyTorch CPU &bull; Dynamic Positional Encodings Active</span>
+                <span class="toolbar-title">Translation Settings</span>
             </div>
         """,
         unsafe_allow_html=True,
@@ -793,9 +793,6 @@ with tab_translate:
     # -------------------------------------------------------------------------
     # Quick Evaluation Presets
     # -------------------------------------------------------------------------
-    if "source_text" not in st.session_state:
-        st.session_state.source_text = "The weather is very nice today."
-
     def apply_preset(prompt: str):
         st.session_state.source_text = prompt
 
@@ -1088,14 +1085,13 @@ with tab_translate:
 # TAB 2: MODEL COMPARISON (Option A Study)
 # =============================================================================
 with tab_comparison:
-    st.markdown('<div class="view-heading">Empirical Comparison: Baseline (§5.6) vs. Scaled GPU Architecture</div>', unsafe_allow_html=True)
+    st.markdown('<div class="view-heading">Baseline vs. Scaled Model</div>', unsafe_allow_html=True)
     st.markdown(
         """
         <div class="narrative-card">
-            To assess the scaling headroom of our from-scratch PyTorch Transformer, we conducted an empirical
-            investigation comparing the course-compliant <strong>Baseline Model</strong> (4.0M parameters, CPU-trained)
-            against an <strong>Option A Scaled GPU Model</strong> (11.5M parameters, NVIDIA Tesla T4 GPU) featuring
-            Pre-LayerNorm residuals, embedding-to-output weight tying, and Stochastic Weight Averaging (SWA).
+            We compared two versions of the model: a smaller <strong>Baseline</strong> (4.0M parameters, trained on
+            CPU) and a bigger <strong>Scaled</strong> model (11.5M parameters, trained on a GPU) with a few
+            architecture improvements built in.
         </div>
         """,
         unsafe_allow_html=True,
@@ -1107,9 +1103,9 @@ with tab_comparison:
         st.markdown(
             """
             <div class="kpi-container">
-                <div class="kpi-title">Model Capacity</div>
+                <div class="kpi-title">Model Size</div>
                 <div class="kpi-value">11.5M</div>
-                <div class="kpi-subtext">+7.5M params (2.87&times;)</div>
+                <div class="kpi-subtext">2.87&times; bigger than baseline</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1118,9 +1114,9 @@ with tab_comparison:
         st.markdown(
             """
             <div class="kpi-container">
-                <div class="kpi-title">Validation Loss Floor</div>
+                <div class="kpi-title">Lowest Validation Loss</div>
                 <div class="kpi-value">3.56</div>
-                <div class="kpi-subtext">-0.40 cross-entropy</div>
+                <div class="kpi-subtext">Lower is better</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1129,9 +1125,9 @@ with tab_comparison:
         st.markdown(
             """
             <div class="kpi-container">
-                <div class="kpi-title">Training Wall Time</div>
+                <div class="kpi-title">Training Time</div>
                 <div class="kpi-value">23.0m</div>
-                <div class="kpi-subtext">Tesla T4 GPU (FP16 AMP)</div>
+                <div class="kpi-subtext">On a GPU</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1140,9 +1136,9 @@ with tab_comparison:
         st.markdown(
             """
             <div class="kpi-container">
-                <div class="kpi-title">Weight Tying Savings</div>
+                <div class="kpi-title">Parameters Saved</div>
                 <div class="kpi-value">2.05M</div>
-                <div class="kpi-subtext neutral">Linear projection tied to Emb</div>
+                <div class="kpi-subtext neutral">By reusing the embedding weights</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1153,44 +1149,56 @@ with tab_comparison:
     # 4-Panel Master Benchmark Figure
     fig_full = ROOT_DIR / "reports" / "figures" / "full_model_comparison.png"
     if fig_full.exists():
-        st.image(str(fig_full), caption="Figure 1: Comprehensive Comparative Study Dashboard (Loss Curves, Parameter Allocations, Learning Rate Schedules & Sample BLEU)", use_container_width=True)
+        st.image(str(fig_full), caption="Figure 1: Full Comparison Overview", use_container_width=True)
 
-    fig_c1, fig_c2 = st.columns(2)
+    fig_c1, fig_c2, fig_c3 = st.columns(3)
     fig_loss = ROOT_DIR / "reports" / "figures" / "comparison_loss_curves.png"
     fig_param = ROOT_DIR / "reports" / "figures" / "comparison_param_breakdown.png"
+    fig_lr = ROOT_DIR / "reports" / "figures" / "comparison_lr_schedules.png"
     with fig_c1:
         if fig_loss.exists():
-            st.image(str(fig_loss), caption="Figure 2: Convergence Trajectories & Loss Basin Floor", use_container_width=True)
+            st.image(str(fig_loss), caption="Figure 2: Training Loss Over Time", use_container_width=True)
     with fig_c2:
         if fig_param.exists():
-            st.image(str(fig_param), caption="Figure 3: Layer-by-Layer Parameter Distribution & Weight Tying", use_container_width=True)
+            st.image(str(fig_param), caption="Figure 3: Where the Parameters Are", use_container_width=True)
+    with fig_c3:
+        if fig_lr.exists():
+            st.image(str(fig_lr), caption="Figure 4: Learning Rate Over Training", use_container_width=True)
 
     # Architectural Spec Table
-    st.markdown('<div class="view-heading">Architectural & Hyperparameter Specification Matrix</div>', unsafe_allow_html=True)
+    st.markdown('<div class="view-heading">Architecture Comparison</div>', unsafe_allow_html=True)
     comp_df = pd.DataFrame([
-        {"Specification": "Architecture Pattern", "Baseline (§5.6 Compliant)": "Post-LN Vanilla Transformer", "Scaled GPU Model (Option A)": "Pre-LN Deep Transformer", "Impact": "Prevents vanishing gradients in deep stacks"},
-        {"Specification": "Layer Depth (N_enc + N_dec)", "Baseline (§5.6 Compliant)": "2 + 2 = 4 layers", "Scaled GPU Model (Option A)": "4 + 4 = 8 layers", "Impact": "2× hierarchical feature extraction"},
-        {"Specification": "Hidden Model Dim (d_model)", "Baseline (§5.6 Compliant)": "128", "Scaled GPU Model (Option A)": "256", "Impact": "2× representational embedding width"},
-        {"Specification": "Attention Heads (n_heads)", "Baseline (§5.6 Compliant)": "4 heads (d_k=32)", "Scaled GPU Model (Option A)": "8 heads (d_k=32)", "Impact": "2× multi-aspect syntactic attention"},
-        {"Specification": "Feed-Forward Dim (d_ff)", "Baseline (§5.6 Compliant)": "512", "Scaled GPU Model (Option A)": "1024", "Impact": "2× non-linear sublayer capacity"},
-        {"Specification": "Output Head Weight Tying", "Baseline (§5.6 Compliant)": "Untied (Independent linear head)", "Scaled GPU Model (Option A)": "Tied to target token embedding", "Impact": "Saves 2,048,000 redundant parameters"},
-        {"Specification": "Vocabulary Budget", "Baseline (§5.6 Compliant)": "4,000 En / 4,000 Or", "Scaled GPU Model (Option A)": "8,000 En / 8,000 Or", "Impact": "Captures Odia multi-syllable compounds"},
-        {"Specification": "Learning Rate Schedule", "Baseline (§5.6 Compliant)": "Noam Warmup + Inverse Sqrt", "Scaled GPU Model (Option A)": "Warmup (1200 st) + Cosine Anneal", "Impact": "Smooth decay down to 1e-6 floor"},
-        {"Specification": "Checkpoint Selection", "Baseline (§5.6 Compliant)": "Single Best Epoch", "Scaled GPU Model (Option A)": "Stochastic Weight Averaging (Top 3)", "Impact": "Flatter loss basin and generalizability"},
+        {"Setting": "Architecture", "Baseline": "Standard Transformer (Post-LN)", "Scaled Model": "Deeper Transformer (Pre-LN)", "Why it matters": "Keeps gradients stable in deeper models"},
+        {"Setting": "Layer Depth", "Baseline": "2 + 2 = 4 layers", "Scaled Model": "4 + 4 = 8 layers", "Why it matters": "Learns more complex patterns"},
+        {"Setting": "Hidden Size", "Baseline": "128", "Scaled Model": "256", "Why it matters": "Richer word representations"},
+        {"Setting": "Attention Heads", "Baseline": "4 heads", "Scaled Model": "8 heads", "Why it matters": "Attends to more patterns at once"},
+        {"Setting": "Feed-Forward Size", "Baseline": "512", "Scaled Model": "1024", "Why it matters": "More capacity to learn"},
+        {"Setting": "Weight Tying", "Baseline": "Untied", "Scaled Model": "Tied to embeddings", "Why it matters": "Saves about 2M parameters"},
+        {"Setting": "Vocabulary Size", "Baseline": "4,000 En / 4,000 Or", "Scaled Model": "8,000 En / 8,000 Or", "Why it matters": "Handles longer Odia words better"},
+        {"Setting": "Learning Rate Schedule", "Baseline": "Noam Warmup + Inverse Sqrt", "Scaled Model": "Warmup + Cosine Decay", "Why it matters": "Smoothly lowers the learning rate over training"},
+        {"Setting": "Checkpoint Selection", "Baseline": "Single Best Epoch", "Scaled Model": "Averaged Top 3", "Why it matters": "Helps the model generalize better"},
     ])
     st.dataframe(comp_df, use_container_width=True, hide_index=True)
 
     # Qualitative Test Set Comparison
-    if MODEL_COMPARISON and "qualitative_comparison" in MODEL_COMPARISON:
-        st.markdown('<div class="view-heading">Qualitative Test Set Translation Evaluation</div>', unsafe_allow_html=True)
-        st.caption("Side-by-side held-out test translations illustrating the elimination of repetition loops and improved compound word synthesis:")
-        st.dataframe(pd.DataFrame(MODEL_COMPARISON["qualitative_comparison"]), use_container_width=True, hide_index=True)
+    if MODEL_COMPARISON and "sample_translations_comparison" in MODEL_COMPARISON:
+        st.markdown('<div class="view-heading">Example Translations</div>', unsafe_allow_html=True)
+        st.caption("A few examples comparing both models on sentences neither one trained on:")
+        qual_df = pd.DataFrame(MODEL_COMPARISON["sample_translations_comparison"]).rename(columns={
+            "source": "Source",
+            "reference": "Reference",
+            "baseline_output": "Baseline Output",
+            "scaled_greedy": "Scaled (Greedy)",
+            "scaled_beam": "Scaled (Beam k=4)",
+            "linguistic_notes": "Linguistic Notes",
+        })
+        st.dataframe(qual_df, use_container_width=True, hide_index=True)
 
 # =============================================================================
 # TAB 3: TRAINING & BENCHMARKS
 # =============================================================================
 with tab_benchmarks:
-    st.markdown('<div class="view-heading">Training Trajectory & Quantitative Test Benchmarks</div>', unsafe_allow_html=True)
+    st.markdown('<div class="view-heading">Training & Test Results</div>', unsafe_allow_html=True)
 
     # Interactive Loss Curve
     if TRAINING_HISTORY:
@@ -1209,12 +1217,12 @@ with tab_benchmarks:
             )
             .configure_view(strokeWidth=0)
             .configure_axis(gridColor="#F1F5F9", labelColor=TEXT_MUTED, titleColor=SLATE_900)
-            .properties(height=340, background="#FFFFFF", title="Baseline Model 40-Epoch Training Trajectory")
+            .properties(height=340, background="#FFFFFF", title="Training Loss Over 40 Epochs")
         )
         st.altair_chart(loss_chart, use_container_width=True)
 
     # Test Set Metrics
-    st.markdown('<div class="view-heading">Official Evaluation Metrics (SacreBLEU)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="view-heading">Test Results</div>', unsafe_allow_html=True)
     m1, m2, m3 = st.columns(3)
     bleu_score = EVAL_RESULTS.get("bleu_score", 2.60) if EVAL_RESULTS else 2.60
     signature = EVAL_RESULTS.get("bleu_signature", "n/a") if EVAL_RESULTS else "n/a"
@@ -1224,9 +1232,9 @@ with tab_benchmarks:
         st.markdown(
             f"""
             <div class="kpi-container">
-                <div class="kpi-title">Held-Out Test BLEU</div>
+                <div class="kpi-title">Translation Quality (BLEU)</div>
                 <div class="kpi-value">{bleu_score:.2f}</div>
-                <div class="kpi-subtext neutral">SacreBLEU Standard Metric</div>
+                <div class="kpi-subtext neutral">Standard translation quality score</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1235,9 +1243,9 @@ with tab_benchmarks:
         st.markdown(
             """
             <div class="kpi-container">
-                <div class="kpi-title">Test Corpus Size</div>
+                <div class="kpi-title">Test Sentences</div>
                 <div class="kpi-value">2,000</div>
-                <div class="kpi-subtext neutral">Independent held-out split</div>
+                <div class="kpi-subtext neutral">Sentences the model never trained on</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1246,9 +1254,9 @@ with tab_benchmarks:
         st.markdown(
             f"""
             <div class="kpi-container">
-                <div class="kpi-title">Greedy Decoding Time</div>
+                <div class="kpi-title">Translation Time</div>
                 <div class="kpi-value">{dec_sec:.1f}s</div>
-                <div class="kpi-subtext neutral">Across 2,000 test sentences</div>
+                <div class="kpi-subtext neutral">To translate all 2,000 test sentences</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1256,13 +1264,13 @@ with tab_benchmarks:
 
     # Sequence Length Quality Analysis
     if LENGTH_QUALITY_RESULTS:
-        st.markdown('<div class="view-heading">Quality Degradation Across Sequence Lengths</div>', unsafe_allow_html=True)
+        st.markdown('<div class="view-heading">Quality Drops on Longer Sentences</div>', unsafe_allow_html=True)
         st.markdown(
             """
             <div class="narrative-card">
-                Empirical evaluation across all 2,000 test sentences shows that BLEU degrades on longer source sequences
-                due to degenerate repetition loops in greedy decoding. Implementing <strong>no-repeat n-gram blocking (n=3)</strong>
-                and <strong>length-penalized beam search</strong> effectively eliminates these degenerate loops.
+                Longer sentences are harder to translate: the model is more likely to get stuck repeating the same
+                words. Blocking repeated word patterns and comparing multiple translation attempts
+                (<strong>beam search</strong>) instead of just one mostly fixes this.
             </div>
             """,
             unsafe_allow_html=True,
@@ -1289,12 +1297,151 @@ with tab_benchmarks:
                     .mark_bar(color="#DC2626", cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
                     .encode(
                         x=alt.X("bucket:N", title="Sentence Length (Words)", sort=[b["bucket"] for b in buckets]),
-                        y=alt.Y("repetition_rate_pct:Q", title="Degenerate Repetition Rate (%)"),
+                        y=alt.Y("repetition_rate_pct:Q", title="Repetition Rate (%)"),
                         tooltip=["bucket", "count", alt.Tooltip("repetition_rate_pct:Q", format=".1f")],
                     )
                     .properties(height=260, title="Repetition Rate vs. Source Length")
                 )
                 st.altair_chart(c_rep, use_container_width=True)
+
+        # -------------------------------------------------------------------
+        # Sentence-Level Deep Dive: BLEU distribution & length/quality scatter
+        # -------------------------------------------------------------------
+        scatter_wl = LENGTH_QUALITY_RESULTS.get("scatter_source_word_len", [])
+        scatter_bleu = LENGTH_QUALITY_RESULTS.get("scatter_sentence_bleu", [])
+        scatter_rep = LENGTH_QUALITY_RESULTS.get("scatter_is_repetitive", [])
+        has_scatter = scatter_wl and scatter_bleu and scatter_rep and len(scatter_wl) == len(scatter_bleu) == len(scatter_rep)
+
+        if has_scatter:
+            scatter_df = pd.DataFrame({
+                "word_len": scatter_wl,
+                "bleu": scatter_bleu,
+                "is_repetitive": scatter_rep,
+            })
+            scatter_df["Decoding Outcome"] = scatter_df["is_repetitive"].map({True: "Repetition Loop", False: "Clean Decode"})
+
+            st.markdown('<div class="view-heading">A Closer Look at Individual Sentences</div>', unsafe_allow_html=True)
+            st.markdown(
+                """
+                <div class="narrative-card">
+                    Looking at each of the 2,000 test sentences on its own: many score 0 because the model got stuck
+                    repeating itself instead of finishing the translation. The chart on the right shows this happens
+                    more often as sentences get longer.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            dd1, dd2 = st.columns(2)
+            with dd1:
+                c_hist = (
+                    alt.Chart(scatter_df)
+                    .mark_bar(color="#2563EB", cornerRadiusTopLeft=2, cornerRadiusTopRight=2)
+                    .encode(
+                        x=alt.X("bleu:Q", bin=alt.Bin(maxbins=30), title="Sentence BLEU"),
+                        y=alt.Y("count():Q", title="Number of Sentences"),
+                        tooltip=[alt.Tooltip("count():Q", title="Sentences")],
+                    )
+                    .properties(height=280, title="How BLEU Scores Are Spread Out (2,000 Sentences)")
+                )
+                st.altair_chart(c_hist, use_container_width=True)
+            with dd2:
+                c_scatter = (
+                    alt.Chart(scatter_df)
+                    .mark_circle(size=26, opacity=0.5)
+                    .encode(
+                        x=alt.X("word_len:Q", title="Source Length (Words)"),
+                        y=alt.Y("bleu:Q", title="Sentence BLEU"),
+                        color=alt.Color(
+                            "Decoding Outcome:N",
+                            scale=alt.Scale(domain=["Clean Decode", "Repetition Loop"], range=["#2563EB", "#DC2626"]),
+                        ),
+                        tooltip=["word_len:Q", alt.Tooltip("bleu:Q", format=".2f"), "Decoding Outcome:N"],
+                    )
+                    .properties(height=280, title="BLEU vs. Sentence Length")
+                )
+                st.altair_chart(c_scatter, use_container_width=True)
+
+            # -----------------------------------------------------------
+            # Confusion Matrix: Length-Based Repetition Prediction
+            # -----------------------------------------------------------
+            st.markdown('<div class="view-heading">Can Sentence Length Predict Failures?</div>', unsafe_allow_html=True)
+            st.markdown(
+                """
+                <div class="narrative-card">
+                    The chart above shows longer sentences (<strong>12+ words</strong>) are more likely to trigger a
+                    repetition failure. Here we test that as a simple rule: does sentence length alone predict
+                    which translations will fail, across all 2,000 test sentences?
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            REP_THRESHOLD = 12
+            scatter_df["Predicted"] = np.where(
+                scatter_df["word_len"] >= REP_THRESHOLD, "Pred: Repetitive", "Pred: Clean"
+            )
+            scatter_df["Actual"] = np.where(scatter_df["is_repetitive"], "Actual: Repetitive", "Actual: Clean")
+
+            pred_order = ["Pred: Repetitive", "Pred: Clean"]
+            actual_order = ["Actual: Clean", "Actual: Repetitive"]
+            cm_counts = (
+                scatter_df.groupby(["Predicted", "Actual"]).size().reindex(
+                    pd.MultiIndex.from_product([pred_order, actual_order], names=["Predicted", "Actual"]),
+                    fill_value=0,
+                ).reset_index(name="Count")
+            )
+
+            def _cm_lookup(pred, actual):
+                row = cm_counts[(cm_counts["Predicted"] == pred) & (cm_counts["Actual"] == actual)]
+                return int(row["Count"].iloc[0]) if len(row) else 0
+
+            tp = _cm_lookup(pred_order[0], "Actual: Repetitive")
+            fp = _cm_lookup(pred_order[0], "Actual: Clean")
+            fn = _cm_lookup(pred_order[1], "Actual: Repetitive")
+            tn = _cm_lookup(pred_order[1], "Actual: Clean")
+            total_n = tp + fp + fn + tn
+            accuracy = (tp + tn) / total_n if total_n else 0.0
+            precision = tp / (tp + fp) if (tp + fp) else 0.0
+            recall = tp / (tp + fn) if (tp + fn) else 0.0
+
+            cm1, cm2 = st.columns([1.4, 1])
+            with cm1:
+                cm_base = alt.Chart(cm_counts).encode(
+                    x=alt.X("Actual:N", title="Actual Decoding Outcome", sort=actual_order),
+                    y=alt.Y("Predicted:N", title="Length-Based Prediction", sort=pred_order),
+                )
+                cm_heat = cm_base.mark_rect().encode(
+                    color=alt.Color("Count:Q", scale=alt.Scale(scheme="blues"), legend=alt.Legend(title="Sentences")),
+                    tooltip=["Predicted:N", "Actual:N", "Count:Q"],
+                )
+                cm_text = cm_base.mark_text(baseline="middle", fontSize=17, fontWeight="bold").encode(
+                    text="Count:Q",
+                    color=alt.condition(f"datum.Count > {total_n * 0.28}", alt.value("white"), alt.value("#0F172A")),
+                )
+                st.altair_chart(
+                    (cm_heat + cm_text).properties(height=260, title="Predicted vs. Actual Repetition"),
+                    use_container_width=True,
+                )
+            with cm2:
+                st.markdown(
+                    f"""
+                    <div class="kpi-container" style="margin-bottom:0.8rem;">
+                        <div class="kpi-title">How Often the Rule is Right</div>
+                        <div class="kpi-value">{accuracy*100:.1f}%</div>
+                        <div class="kpi-subtext neutral">Using "12+ words" as the rule</div>
+                    </div>
+                    <div class="kpi-container" style="margin-bottom:0.8rem;">
+                        <div class="kpi-title">Precision</div>
+                        <div class="kpi-value">{precision*100:.1f}%</div>
+                        <div class="kpi-subtext neutral">When it predicts a failure, how often it's right</div>
+                    </div>
+                    <div class="kpi-container">
+                        <div class="kpi-title">Recall</div>
+                        <div class="kpi-value">{recall*100:.1f}%</div>
+                        <div class="kpi-subtext neutral">How many real failures it actually catches</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
 # =============================================================================
 # TAB 4: ARCHITECTURE & LINGUISTICS
@@ -1304,10 +1451,9 @@ with tab_arch:
     st.markdown(
         """
         <div class="narrative-card">
-            <strong>The Brahmic Script Asymmetry:</strong> Odia is written in an abugida script where consonants carry
-            inherent vowels and combine with dependent vowel signs (ମାତ୍ରା) and consonant conjuncts (ଯୁକ୍ତାକ୍ଷର).
-            Because subword tokenization operates on multi-byte UTF-8 sequences, an Odia sentence consistently decomposes into
-            <strong>2.5&times; to 3.0&times; more subwords</strong> than its English counterpart for the same semantic content.
+            Odia's script is more complex than English's &mdash; letters combine with vowel signs (ମାତ୍ରା) and joined
+            consonants (ଯୁକ୍ତାକ୍ଷର) into single symbols. Because of this, the same sentence needs
+            <strong>2.5&times; to 3.0&times; more subword tokens</strong> in Odia than in English.
         </div>
         """,
         unsafe_allow_html=True,
@@ -1341,17 +1487,17 @@ with tab_arch:
         st.altair_chart(token_chart, use_container_width=True)
 
     # Pipeline Pillars
-    st.markdown('<div class="view-heading">Data Pipeline & Engineering Methodology</div>', unsafe_allow_html=True)
+    st.markdown('<div class="view-heading">How the Text is Processed</div>', unsafe_allow_html=True)
     p1, p2, p3 = st.columns(3)
     with p1:
         st.markdown(
             """
             <div class="kpi-container">
-                <div class="kpi-title">1. Text Normalization</div>
+                <div class="kpi-title">1. Text Cleanup</div>
                 <div style="font-size:0.86rem;line-height:1.6;color:#334155;margin-top:0.4rem;">
-                    &bull; <strong>Unicode NFC:</strong> Eliminates duplicate BPE tokens from decomposing code points.<br/>
-                    &bull; <strong>Joiner Preservation:</strong> Retains ZWJ/ZWNJ for Indic conjuncts.<br/>
-                    &bull; <strong>Noise Filtration:</strong> Removes ZWSP, BOM, and malformed pairs.
+                    &bull; Standardizes text so the same word isn't tokenized differently.<br/>
+                    &bull; Keeps the marks that join Odia letters together correctly.<br/>
+                    &bull; Strips out hidden junk characters before training.
                 </div>
             </div>
             """,
@@ -1361,11 +1507,11 @@ with tab_arch:
         st.markdown(
             """
             <div class="kpi-container">
-                <div class="kpi-title">2. Byte-Level BPE</div>
+                <div class="kpi-title">2. Vocabulary</div>
                 <div style="font-size:0.86rem;line-height:1.6;color:#334155;margin-top:0.4rem;">
-                    &bull; <strong>0.0% UNK Guarantee:</strong> Raw byte fallback prevents out-of-vocabulary crashes.<br/>
-                    &bull; <strong>Dual Vocabularies:</strong> Dedicated vocab budgets (4k/8k) per script.<br/>
-                    &bull; <strong>Template Wrapping:</strong> Automatic atomic <code>&lt;SOS&gt;</code> / <code>&lt;EOS&gt;</code> tagging.
+                    &bull; Never fails on an unknown word &mdash; falls back to raw characters.<br/>
+                    &bull; Separate vocabularies for English and Odia.<br/>
+                    &bull; Every sentence is auto-tagged with a start and end marker.
                 </div>
             </div>
             """,
@@ -1375,18 +1521,13 @@ with tab_arch:
         st.markdown(
             """
             <div class="kpi-container">
-                <div class="kpi-title">3. Regularization &amp; Decoding</div>
+                <div class="kpi-title">3. Decoding</div>
                 <div style="font-size:0.86rem;line-height:1.6;color:#334155;margin-top:0.4rem;">
-                    &bull; <strong>Label Smoothing (0.1):</strong> Calibrates cross-entropy loss against overconfidence.<br/>
-                    &bull; <strong>Beam Search (k=4):</strong> Length-normalized search over output space.<br/>
-                    &bull; <strong>3-Gram Repetition Block:</strong> Dynamic masking prevents degenerate subword loops.
+                    &bull; Trained to avoid being overconfident about any one word.<br/>
+                    &bull; Beam search compares several possible translations, not just one.<br/>
+                    &bull; Blocks the model from getting stuck repeating itself.
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-# -----------------------------------------------------------------------------
-# Footer
-# -----------------------------------------------------------------------------
-st.markdown("<div style='margin-top:2.5rem;border-top:1px solid #E2E8F0;padding-top:1rem;text-align:center;color:#94A3B8;font-size:0.78rem;'>English &rarr; Odia Neural Machine Translation Platform &bull; Academic Research Implementation &bull; PyTorch</div>", unsafe_allow_html=True)
