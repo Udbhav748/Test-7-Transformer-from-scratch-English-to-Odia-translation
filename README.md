@@ -10,7 +10,7 @@ English → Odia machine translation, trained on the [AI4Bharat Samanantar](http
 corpus. Includes an interactive Streamlit dashboard for translating text, comparing two trained
 models side by side, and inspecting every training/evaluation result.
 
-**Author:** Udbhav Narawat — English → Odia NMT project for [Course Name]
+**Author:** Udbhav Narawat
 
 ## Contents
 
