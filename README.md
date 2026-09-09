@@ -10,10 +10,13 @@ English → Odia machine translation, trained on the [AI4Bharat Samanantar](http
 corpus. Includes an interactive Streamlit dashboard for translating text, comparing two trained
 models side by side, and inspecting every training/evaluation result.
 
+**Author:** Udbhav Narawat — English → Odia NMT project for [Course Name]
+
 ## Contents
 
 - [Results](#results)
 - [Requirement Coverage](#requirement-coverage)
+- [Limitations](#limitations)
 - [Screenshots](#screenshots)
 - [Project Structure](#project-structure)
 - [Setup](#setup)
@@ -21,6 +24,7 @@ models side by side, and inspecting every training/evaluation result.
 - [Reproduce the Pipeline](#reproduce-the-pipeline)
 - [Notebooks](#notebooks)
 - [Testing](#testing)
+- [Data & Acknowledgments](#data--acknowledgments)
 
 ## Results
 
@@ -61,6 +65,21 @@ Every requirement from the assignment spec is checked off against the actual cod
 "Exceeded" items include things the spec didn't strictly require but the project does anyway:
 beam search, decode-time repetition blocking, Odia Unicode normalization, and an explicit
 causal-mask bug check on the training curves.
+
+## Limitations
+
+- **Small model, trained from scratch, on limited compute.** The baseline is 4M parameters trained
+  on a CPU; the scaled model is 11.5M parameters trained on a single GPU for 25 epochs. Production
+  translation systems (e.g. AI4Bharat IndicTrans2, Meta NLLB-200) use 600M–1B+ parameters trained
+  on tens of millions of sentence pairs — the BLEU scores here (2.60 / 0.31) reflect that gap in
+  scale, not a bug in the implementation (all 18 tests pass, including an explicit causal-mask
+  leak check).
+- **Quality drops sharply on longer sentences.** Both models are prone to falling into repetition
+  loops as source length increases (see the Training & Benchmarks tab) — beam search with n-gram
+  blocking largely fixes this, greedy decoding does not.
+- **The scaled model's raw BLEU is lower than the baseline's** because it was trained for fewer
+  epochs (25 vs. 40) on a tighter time budget. With beam search it closes most of that gap — see
+  the Model Comparison tab and `reports/write_up.md` for the full discussion.
 
 ## Screenshots
 
@@ -168,3 +187,9 @@ and a full training-loop smoke test (loss must actually decrease and the checkpo
 correctly).
 
 ![pytest run — 18 passed](docs/screenshots/06_pytest_run.png)
+
+## Data & Acknowledgments
+
+Training data is the English–Odia (`or`) config of
+[AI4Bharat Samanantar](https://huggingface.co/datasets/ai4bharat/samanantar) (Ramesh et al., 2021),
+a large-scale parallel corpus for Indic languages.
