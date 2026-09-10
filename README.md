@@ -170,20 +170,10 @@ Why Odia needs more subword tokens than English, and how the text pipeline works
 
 ## Analysis Figures
 
-Every figure in this section is a **direct screenshot of the rendered notebook**
-([`notebooks/model_parameters_and_results.ipynb`](notebooks/model_parameters_and_results.ipynb))
-— the actual code cell plus its real output, captured with a headless browser right after
-executing the notebook against the real checkpoints, tokenizers, and result files in this repo.
-Nothing here is a standalone chart drawn or mocked up separately. Running the notebook yourself
-(`jupyter nbconvert --to notebook --execute notebooks/model_parameters_and_results.ipynb`)
-reproduces these exact outputs.
-
-Two bugs were caught and fixed while putting this together: the attention-heatmap cell was
-reading the wrong JSON key (`attention_weights` instead of the actual `attention_matrix`) and
-displaying raw, undecoded byte-level BPE token pieces as axis labels; and the baseline-vs-scaled
-parameter breakdown chart had **hand-typed parameter counts** instead of a real
-`model.named_parameters()` count (it also listed the scaled checkpoint's file size wrong — 51.6MB
-instead of its actual 54.1MB). All three are fixed now and the notebook was re-executed end to end.
+These are screenshots straight from
+[`notebooks/model_parameters_and_results.ipynb`](notebooks/model_parameters_and_results.ipynb) —
+the actual code cell and its output, so you can see exactly what ran to produce each chart. Open
+the notebook and run it yourself to get the same results.
 
 ### Baseline model: dataset & tokenizer stats
 Pair-retention rate vs. the `MAX_LEN` cutoff, and the subword-count gap between English and Odia at the actual 8k vocabulary size.
@@ -218,17 +208,12 @@ scaled model's val loss sits a little *below* train (3.56 vs. 3.63), which is th
 effect of label smoothing inflating the reported training loss and dropout being active only
 during training — not the sharp collapse a real masking leak would cause.
 
-Panel D (example outputs) was previously hand-written rather than generated — one example
-sentence ("Former minister bereaved") didn't even exist in the real dataset, and two example
-strings had explanatory text like `(repetition trap)` baked directly into what should have been
-pure model output. Both are fixed now: a script actually runs both checkpoints on real dataset
-sentences (cross-referenced against `data/processed/*.parquet` and `data/raw/candidates.parquet`
-— it refuses to run on a sentence it can't verify exists), and Panel D /
-[`reports/model_comparison.json`](reports/model_comparison.json) are built from that real output.
-The corrected data automatically flows into the live dashboard too (its "Example Translations"
-table reads the same JSON file — see the [Model Comparison screenshot](#screenshots) above).
+Panel D's three example sentences come straight from the test set, run through both checkpoints
+([`reports/model_comparison.json`](reports/model_comparison.json)). The same file feeds the
+"Example Translations" table in the live dashboard's Model Comparison tab — see the
+[screenshot](#screenshots) above.
 
-![Full baseline vs. scaled comparison, real notebook cell screenshot](docs/figures/notebook_comparison_dashboard.png)
+![Full baseline vs. scaled comparison](docs/figures/notebook_comparison_dashboard.png)
 
 ## Project Structure
 
