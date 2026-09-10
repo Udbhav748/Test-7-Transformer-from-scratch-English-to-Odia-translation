@@ -14,6 +14,7 @@ models side by side, and inspecting every training/evaluation result.
 
 ## Contents
 
+- [Architecture](#architecture)
 - [Results](#results)
 - [Requirement Coverage](#requirement-coverage)
 - [Limitations](#limitations)
@@ -26,6 +27,16 @@ models side by side, and inspecting every training/evaluation result.
 - [Notebooks](#notebooks)
 - [Testing](#testing)
 - [Data & Acknowledgments](#data--acknowledgments)
+
+## Architecture
+
+Standard encoder-decoder Transformer, built layer by layer in PyTorch — every attention block,
+mask, and positional encoding is hand-implemented rather than using `nn.Transformer` or
+`nn.MultiheadAttention`. Two versions are trained: a smaller baseline (Post-LN, untied weights)
+and a larger scaled model (Pre-LN, weight tying) — see [Results](#results) below for how they
+compare.
+
+![Transformer architecture diagram](docs/figures/architecture_diagram.png)
 
 ## Results
 
@@ -57,22 +68,26 @@ Full analysis is in [`reports/write_up.md`](reports/write_up.md).
 
 ## Requirement Coverage
 
-Every requirement from the assignment spec is checked off against the actual code in
+This project was built against a fixed set of assignment requirements — a specific
+architecture, data pipeline, training setup, and evaluation protocol. Rather than just claiming
+it's all there, every individual requirement is checked off against the actual code and file
+that satisfies it in
 [`reports/requirements_coverage.json`](reports/requirements_coverage.json):
 
 | Category | Requirements | Status |
 |---|---|---|
 | Data preparation | 6 | ✅ all met |
-| Architecture (spec §5.6) | 7 | ✅ all met |
+| Model architecture | 7 | ✅ all met |
 | Training | 5 | ✅ all met (1 exceeded) |
 | Inference | 3 | ✅ all met (2 exceeded) |
 | Evaluation | 4 | ✅ all met (1 exceeded) |
-| Odia-specific / extra credit | 3 | ✅ all met (2 exceeded) |
-| **Total** | **28** | **28/28 — 6 exceeded spec** |
+| Odia-specific handling / extra credit | 3 | ✅ all met (2 exceeded) |
+| **Total** | **28** | **28/28 — 6 exceeded the requirement** |
 
-"Exceeded" items include things the spec didn't strictly require but the project does anyway:
-beam search, decode-time repetition blocking, Odia Unicode normalization, and an explicit
-causal-mask bug check on the training curves.
+"Exceeded" means the project does something beyond what was strictly asked for: beam search
+decoding, blocking repeated word loops at generation time, proper Unicode handling for Odia's
+script, and an explicit check that the decoder isn't secretly allowed to see the word it's
+supposed to predict (a common and easy-to-miss bug in causal masking).
 
 ## Limitations
 
@@ -105,6 +120,16 @@ Both models translating the same sentence at once, with per-model latency and to
 ### Translator — cross-attention heatmap
 Which English source tokens the model attended to while generating each Odia subword — the "extra credit" attention visualization.
 ![Translator tab, cross-attention alignment heatmap](docs/screenshots/02c_translator_attention_heatmap.png)
+
+### Translator — why greedy decoding breaks on long sentences
+Same 32-word sentence, same model. **Greedy** runs all the way to the 96-token length cap without
+finding a natural stopping point, producing visibly degenerate output (note the repeated
+"ସ୍ଥାନ୍ ସ୍ଥାନ୍" token pair). **Beam search** (k=4) explores multiple candidate translations instead
+of committing to one token at a time, terminates naturally at 63 tokens, and produces a coherent
+sentence.
+
+![Greedy decoding running away to the length cap](docs/screenshots/02d_greedy_repetition_loop.png)
+![Beam search terminating naturally with a coherent output](docs/screenshots/02e_beam_search_fix.png)
 
 ### Model Comparison
 Baseline vs. scaled model in full: KPI cards, loss curves, the 4-panel comparison figure, architecture table, and example translations.
