@@ -195,25 +195,31 @@ The same length-vs-quality analysis shown in the dashboard, computed directly in
 Which English source tokens the model attended to while generating each Odia subword, for the sentence *"Shutting down might cause them to lose unsaved work."* — computed from the actual attention weights extracted during decoding.
 ![Cross-attention weights heatmap from the notebook](docs/figures/notebook_attention_heatmap.png)
 
-### Full baseline-vs-scaled comparison
-One notebook cell, four real charts computed from the actual checkpoints and logged training
-history: loss curves (full scale + convergence zoom), a layer-by-layer parameter breakdown, the
-learning-rate schedules, and an architecture/qualitative-output comparison.
+### Baseline vs. scaled: loss curves
+Full-scale view plus a zoomed-in convergence region (epoch 5+). This is also the causal-mask
+sanity check the assignment brief specifically warns about: if the decoder could "peek" at the
+token it's supposed to predict, validation loss would collapse toward zero — dramatically and
+suspiciously lower than training loss. Neither curve does that. The baseline's val and train
+losses track closely together (2.85 vs. 2.71 at the final epoch); the scaled model's val loss
+sits a little *below* train (3.56 vs. 3.63), which is the normal, expected effect of label
+smoothing inflating the reported training loss and dropout being active only during training —
+not the sharp collapse a real masking leak would cause.
+![Baseline vs. scaled loss curves](docs/figures/notebook_comparison_loss.png)
 
-This is also the causal-mask sanity check the assignment brief specifically warns about: if the
-decoder could "peek" at the token it's supposed to predict, validation loss would collapse toward
-zero — dramatically and suspiciously lower than training loss. Neither curve does that. The
-baseline's val and train losses track closely together (2.85 vs. 2.71 at the final epoch); the
-scaled model's val loss sits a little *below* train (3.56 vs. 3.63), which is the normal, expected
-effect of label smoothing inflating the reported training loss and dropout being active only
-during training — not the sharp collapse a real masking leak would cause.
+### Baseline vs. scaled: parameter breakdown by component
+Both models' real `named_parameters()` counts, grouped and summed by component.
+![Baseline vs. scaled parameter breakdown](docs/figures/notebook_comparison_params.png)
 
-Panel D's three example sentences come straight from the test set, run through both checkpoints
-([`reports/model_comparison.json`](reports/model_comparison.json)). The same file feeds the
-"Example Translations" table in the live dashboard's Model Comparison tab — see the
-[screenshot](#screenshots) above.
+### Baseline vs. scaled: learning rate schedules
+This cell imports and calls `noam_lr_lambda` from
+[`src/training/lr_schedule.py`](src/training/lr_schedule.py) directly — the same function used
+during training — rather than redrawing the curve from a formula.
+![Baseline vs. scaled learning rate schedules](docs/figures/notebook_comparison_lr.png)
 
-![Full baseline vs. scaled comparison](docs/figures/notebook_comparison_dashboard.png)
+### Baseline vs. scaled: example outputs
+The same three test-set sentences shown in the Model Comparison screenshot above, run through
+both checkpoints ([`reports/model_comparison.json`](reports/model_comparison.json)).
+![Baseline vs. scaled example outputs](docs/figures/notebook_comparison_qualitative.png)
 
 ## Project Structure
 
