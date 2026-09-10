@@ -211,6 +211,17 @@ Which English source tokens the model attended to while generating each Odia sub
 ### Full baseline-vs-scaled comparison
 Loss curves, compute/size comparison, architecture spec table, and qualitative output comparison —
 displayed inline by the notebook's final cells from `reports/figures/`.
+
+Panel D (example outputs) was previously hand-written rather than generated — one example
+sentence ("Former minister bereaved") didn't even exist in the real dataset, and two example
+strings had explanatory text like `(repetition trap)` baked directly into what should have been
+pure model output. Both are fixed now: a script actually runs both checkpoints on real dataset
+sentences (cross-referenced against `data/processed/*.parquet` and `data/raw/candidates.parquet`
+— it refuses to run on a sentence it can't verify exists), and Panel D /
+[`reports/model_comparison.json`](reports/model_comparison.json) are built from that real output.
+The corrected data automatically flows into the live dashboard too (its "Example Translations"
+table reads the same JSON file — see the [Model Comparison screenshot](#screenshots) above).
+
 ![Full baseline vs. scaled comparison](docs/figures/analysis_full_comparison.png)
 
 ### Training loss curves (full scale + zoomed), baseline vs. scaled
@@ -325,7 +336,32 @@ causal mask is the failure mode the assignment brief explicitly warns about:
 - `test_decoder_self_attn_mask_explicit_coverage` / `test_cross_attn_mask_explicit_coverage` — the
   mask tensors themselves are checked cell-by-cell against what they should allow and block
 
-![pytest run — 18 passed](docs/screenshots/06_pytest_run.png)
+Actual output from running `pytest tests/ -v` in this repo:
+
+```
+collected 18 items
+
+tests/test_masks.py::test_causal_leak_invariance_full_model PASSED       [  5%]
+tests/test_masks.py::test_causal_mask_negative_control_has_teeth PASSED  [ 11%]
+tests/test_masks.py::test_decoder_self_attn_mask_explicit_coverage PASSED [ 16%]
+tests/test_masks.py::test_cross_attn_mask_explicit_coverage PASSED       [ 22%]
+tests/test_model_shapes.py::test_shapes_various_batch_and_seq_lengths PASSED [ 27%]
+tests/test_model_shapes.py::test_shapes_with_right_padding PASSED        [ 33%]
+tests/test_model_shapes.py::test_forward_returns_raw_logits_not_probabilities PASSED [ 38%]
+tests/test_model_shapes.py::test_param_count_sanity_and_report PASSED    [ 44%]
+tests/test_repetition.py::test_banned_ngram_tokens_blocks_the_completing_token PASSED [ 50%]
+tests/test_repetition.py::test_banned_ngram_tokens_empty_when_no_repeat_yet PASSED [ 55%]
+tests/test_repetition.py::test_banned_ngram_tokens_short_sequence_returns_empty PASSED [ 61%]
+tests/test_repetition.py::test_greedy_decode_never_repeats_ngram_on_random_model PASSED [ 66%]
+tests/test_tokenizer.py::test_special_token_ids_en PASSED                [ 72%]
+tests/test_tokenizer.py::test_special_token_ids_or PASSED                [ 77%]
+tests/test_tokenizer.py::test_roundtrip_english PASSED                   [ 83%]
+tests/test_tokenizer.py::test_roundtrip_odia PASSED                      [ 88%]
+tests/test_tokenizer.py::test_odia_encoding_wraps_with_sos_eos PASSED    [ 94%]
+tests/test_training_smoke.py::test_loss_decreases_and_checkpoint_round_trips PASSED [100%]
+
+============================= 18 passed in 48.21s =============================
+```
 
 ## Data & Acknowledgments
 

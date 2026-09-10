@@ -67,28 +67,28 @@
   },
   "sample_translations_comparison": [
     {
-      "source": "Former minister bereaved",
-      "reference": "ପରଲୋକରେ ପୂର୍ବତନ ମନ୍ତ୍ରୀ ଚୈତନ୍ୟ ମାଝୀ",
-      "baseline_output": "ସେହିପରି ସେମାରେ କିଛି ନାହିଁ।",
-      "scaled_greedy": "ସେହିପରି ସେମାରେ ପ୍ବତନ ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ",
-      "scaled_beam": "ପ୍ରଧାନମନ୍ତ୍ରୀଙ୍କ ପୂର୍ବତନ ମୁଖ୍ୟମନ୍ତୀ",
-      "linguistic_notes": "The scaled model correctly learned the words for 'Former' (ପୂର୍ବତନ) and 'Minister' (ମୁଖ୍ୟମନ୍ତ୍ରୀ/ମନ୍ତ୍ରୀ). The baseline just produced generic filler text instead."
+      "source": "Haryana minister bereaved",
+      "reference": "ହାରିଗଲେ ହରିଆଣାର ଅର୍ଥମନ୍ତ୍ରୀ",
+      "baseline_output": "ହରିଆଣା ହରିୟାରେ ମୁଖ୍ୟମନ୍ତ୍ରୀ",
+      "scaled_greedy": "ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ ପ୍ରତିତ୍ୟାରୀ",
+      "scaled_beam": "ପ୍ରଧାନମନ୍ତ୍ରୀ",
+      "linguistic_notes": "All three correctly identify this is about a government minister; only the baseline captures 'Haryana' (ହରିଆଣା). None fully match the reference on this terse, headline-style sentence -- a realistic example of the model's limits."
     },
     {
       "source": "The residents of the locality are in a state of panic after the incident.",
       "reference": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଲୋକେ ଉତ୍ତେଜନା ପ୍ରକାଶ କରିଛନ୍ତି।",
-      "baseline_output": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ ପକ୍ଷରୁ କୌଣସି ପ୍ରତିକ୍ରିୟା ମିଳିପାରି ନାହିଁ।",
-      "scaled_greedy": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ତାନାନେ ପ୍ରକାରୀଙ୍କୁ ଗ୍ୟାରେ ପହଞ୍ଚିଛି।",
+      "baseline_output": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଅଞ୍ଚଳରେ ସେ ସୃଷ୍ଟି ଅଞ୍ଟାନ ସ୍ଟୀୟ ଲୋକେ ।",
+      "scaled_greedy": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ତାନାନେ ପ୍ରକାରୀଙ୍କୁ ଗ୍ୟାର କରୁଛି।",
       "scaled_beam": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ଥିତ୍ରେ ଏହି ମାମଲାରୁ ଘଟିଛି ।",
-      "linguistic_notes": "Both models correctly translated 'after the incident' (ଏହି ଘଟଣାରେ). The scaled model with beam search kept the sentence structure cleaner."
+      "linguistic_notes": "All three correctly produce 'after the incident' (ଏହି ଘଟଣା ପରେ/ରେ). The scaled model with beam search stays closest to a coherent full sentence; the baseline and scaled-greedy outputs trail off into less relevant phrasing."
     },
     {
       "source": "But how is it even possible?",
       "reference": "ହେଲେ ତା’ କେମିତି ସମ୍ଭବ !",
-      "baseline_output": "କିନ୍ତୁ କିଛି ବି ନାହିଁ।",
-      "scaled_greedy": "କିନ୍ତୁ କିଛି କିଛି କି କିଛି... (repetition trap)",
-      "scaled_beam": "କିନ୍ତୁ କିଛି କି କେହାକୁ କେ ? (blocked repetition)",
-      "linguistic_notes": "Shows why repetition blocking matters: greedy decoding gets stuck looping on short words, while beam search finishes cleanly."
+      "baseline_output": "କିନ୍ତୁ ଏହା ସମ୍ଭବ ହୋଇ ପାରିତ?",
+      "scaled_greedy": "କିନ୍ତୁ କିଛି କି କେହାରି କ’ଣି କାରେ ?",
+      "scaled_beam": "କିନ୍ତୁ କିଛି କି କେହାକୁ କେ ?",
+      "linguistic_notes": "The baseline's greedy output is a reasonable paraphrase this run. The scaled model's greedy decode is less fluent than its own beam-search output, illustrating why beam search matters even for short sentences."
     }
   ]
 }

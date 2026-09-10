@@ -1,0 +1,23 @@
+[
+  {
+    "source": "Haryana minister bereaved",
+    "reference": "ହାରିଗଲେ ହରିଆଣାର ଅର୍ଥମନ୍ତ୍ରୀ",
+    "baseline_greedy": "ହରିଆଣା ହରିୟାରେ ମୁଖ୍ୟମନ୍ତ୍ରୀ",
+    "scaled_greedy": "ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ ପ୍ରତିତ୍ୟାରୀ",
+    "scaled_beam": "ପ୍ରଧାନମନ୍ତ୍ରୀ"
+  },
+  {
+    "source": "The residents of the locality are in a state of panic after the incident.",
+    "reference": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଲୋକେ ଉତ୍ତେଜନା ପ୍ରକାଶ କରିଛନ୍ତି।",
+    "baseline_greedy": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଅଞ୍ଚଳରେ ସେ ସୃଷ୍ଟି ଅଞ୍ଟାନ ସ୍ଟୀୟ ଲୋକେ ।",
+    "scaled_greedy": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ତାନାନେ ପ୍ରକାରୀଙ୍କୁ ଗ୍ୟାର କରୁଛି।",
+    "scaled_beam": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ଥିତ୍ରେ ଏହି ମାମଲାରୁ ଘଟିଛି ।"
+  },
+  {
+    "source": "But how is it even possible?",
+    "reference": "ହେଲେ ତା’ କେମିତି ସମ୍ଭବ !",
+    "baseline_greedy": "କିନ୍ତୁ ଏହା ସମ୍ଭବ ହୋଇ ପାରିତ?",
+    "scaled_greedy": "କିନ୍ତୁ କିଛି କି କେହାରି କ’ଣି କାରେ ?",
+    "scaled_beam": "କିନ୍ତୁ କିଛି କି କେହାକୁ କେ ?"
+  }
+]
