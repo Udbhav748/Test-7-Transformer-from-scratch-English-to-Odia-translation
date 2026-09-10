@@ -43,7 +43,7 @@
       "training_time": "23.0 minutes",
       "best_val_loss": 3.5588831646535266,
       "epochs": 25,
-      "bleu_score": 0.3149971618365302,
+      "bleu_score": 0.2500555218010942,
       "max_len": 96,
       "lr_schedule": "Cosine Annealing with Warmup (Warmup=1200, Min=1e-6)",
       "checkpoint_averaging": "Stochastic Weight Averaging (SWA, top 3)"

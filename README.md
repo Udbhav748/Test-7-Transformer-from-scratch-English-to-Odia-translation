@@ -41,12 +41,19 @@ Two models were trained and are compared throughout the dashboard and write-up:
 | Epochs | 40 | 25 |
 | Training data | 36,000 pairs | 60,000 pairs |
 | Best validation loss | 2.85 | 3.56 |
-| Test BLEU (greedy) | 2.60 | 0.31 |
+| Test BLEU (greedy) | 2.60 | 0.25 |
+| Test chrF++ (greedy) | 23.46 | 14.32 |
 
-The scaled model is architecturally stronger (Pre-LN, weight tying, more capacity) but was trained
-for fewer epochs, so its raw greedy-decode BLEU is lower — beam search and repetition blocking
-close most of that gap, as shown live in the dashboard's Model Comparison tab. Full analysis is in
-[`reports/write_up.md`](reports/write_up.md).
+Both BLEU and chrF++ are computed with `sacrebleu` over the full 2,000-sentence held-out test set
+([`scripts/run_evaluation.py`](scripts/run_evaluation.py) /
+[`scripts/run_scaled_evaluation.py`](scripts/run_scaled_evaluation.py)). chrF++ is a
+character-level metric, useful alongside BLEU here since Odia is morphologically rich and BLEU's
+word/subword n-gram matching is harsh on near-miss inflections that chrF++ still gives partial
+credit for. The scaled model is architecturally stronger (Pre-LN, weight tying, more capacity) but
+was trained for fewer epochs, so its raw greedy-decode scores are lower — beam search and
+repetition blocking close most of that gap, as shown live in the dashboard's Model Comparison tab
+(and in the 5 qualitative samples in `reports/scaled_eval_results.json`, which do use beam search).
+Full analysis is in [`reports/write_up.md`](reports/write_up.md).
 
 ## Requirement Coverage
 
@@ -72,7 +79,7 @@ causal-mask bug check on the training curves.
 - **Small model, trained from scratch, on limited compute.** The baseline is 4M parameters trained
   on a CPU; the scaled model is 11.5M parameters trained on a single GPU for 25 epochs. Production
   translation systems (e.g. AI4Bharat IndicTrans2, Meta NLLB-200) use 600M–1B+ parameters trained
-  on tens of millions of sentence pairs — the BLEU scores here (2.60 / 0.31) reflect that gap in
+  on tens of millions of sentence pairs — the BLEU scores here (2.60 / 0.25) reflect that gap in
   scale, not a bug in the implementation (all 18 tests pass, including an explicit causal-mask
   leak check).
 - **Quality drops sharply on longer sentences.** Both models are prone to falling into repetition

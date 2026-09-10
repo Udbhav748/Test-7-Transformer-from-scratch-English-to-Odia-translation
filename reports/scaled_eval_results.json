@@ -1,37 +1,36 @@
 {
-  "bleu_score": 0.3149971618365302,
-  "bleu_signature": "BLEU = 0.31 6.6/0.5/0.1/0.0 (BP = 0.906 ratio = 0.910 hyp_len = 16324 ref_len = 17935)",
+  "bleu_score": 0.2500555218010942,
+  "bleu_signature": "BLEU = 0.25 9.8/0.7/0.1/0.0 (BP = 0.705 ratio = 0.741 hyp_len = 11354 ref_len = 15317)",
+  "chrf_score": 14.322521117228282,
+  "chrf_signature": "chrF2++ = 14.32",
   "num_test_examples": 2000,
+  "decode_seconds": 986.7805309295654,
+  "decoding": "greedy (corpus metrics); beam_search_k4 (qualitative samples)",
   "samples": [
     {
-      "Source": "And rams' skins dyed red, and badgers' skins, and shittim wood,",
-      "Reference": "ରକ୍ତୀକୃତ ମଷଚେର୍ମ, ଶିଶୁକ ଚର୍ମ ଓ ଶିଟୀମ୍ କାଷ୍ଠ।",
-      "Greedy Output": "ସେମାନଙ୍କୁ ବିରାରାରେ ବିଶ୍ୟାନ୍ତୁରୀଙ୍କୁ ବାନ୍ତୁ",
-      "Beam Search (k=4)": "ସେମାନଙ୍କ ପାଇଁ ପ୍ରତିସ୍ତାରୀଙ୍କ ବ୍ୟାନ୍ତ୍ତୁ"
+      "source": "Shutting down might cause them to lose unsaved work.",
+      "reference": "ବନ୍ଦ କରିବା ଫଳରେ ହୁଏତ ସେମାନେ ତାଙ୍କର ଅସଂରକ୍ଷିତ କାର୍ଯ୍ୟକୁ ହରାଇପାରନ୍ତି।",
+      "hypothesis": "ସେମାନଙ୍କ ପାଇଁ ତାଙ୍କ ମଧ୍ୟରେ ଦେଖିବାକୁ ସ୍ଥାନ କରିଥିଲେ।"
     },
     {
-      "Source": "But how is it even possible?",
-      "Reference": "ହେଲେ ତା’ କେମିତି ସମ୍ଭବ !",
-      "Greedy Output": "କିନ୍ତୁ କିଛି କିଛି କି କିଛି କି କି କିଛି କି କି କିଛି କି କି କି କିଛି କି କି କି କିଛି କି କି କିଛି କି କି କି କିଛି କି କି କିଛି କି କି କିଛି କି କି କ",
-      "Beam Search (k=4)": "କିନ୍ତୁ କିଛି କି କେହାକୁ କେ ?"
+      "source": "Bihar Chief Minister and JD(U) chief Nitish Kumar.",
+      "reference": "ବିହାର ମୁଖ୍ୟମନ୍ତ୍ରୀ ତଥା ଜେଡିୟୁ ମୁଖ୍ୟ ନୀତୀଶ କୁମାର ଜଣେ ଅତି ଚତୁର ରାଜନେତା।",
+      "hypothesis": "ଏହି ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କ ପ୍ରତିନ୍ଦ୍ରାରୀ ବିଜିତ୍ୟା କରିଛନ୍ତି ।"
     },
     {
-      "Source": "Former minister bereaved",
-      "Reference": "ପରଲୋକରେ ପୂର୍ବତନ ମନ୍ତ୍ରୀ ଚୈତନ୍ୟ ମାଝୀ",
-      "Greedy Output": "ସେହିପରି ସେମାରେ ପ୍ବତନ ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ",
-      "Beam Search (k=4)": "ପ୍ରଧାନମନ୍ତ୍ରୀଙ୍କ ପୂର୍ବତନ ମୁଖ୍ୟମନ୍ତୀ"
+      "source": "Students will be focussed.",
+      "reference": "ଛାତ୍ରଛାତ୍ରୀମାନେ ଉତ୍ସୃଖଳିତ ହେବେ ।",
+      "hypothesis": "ସେମାନଙ୍କୁ ସ୍ଥାନ୍ତ୍ରୀଙ୍କ ପ୍ରତିବ।"
     },
     {
-      "Source": "The residents of the locality are in a state of panic after the incident.",
-      "Reference": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଲୋକେ ଉତ୍ତେଜନା ପ୍ରକାଶ କରିଛନ୍ତି।",
-      "Greedy Output": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ତାନାନେ ପ୍ରକାରୀଙ୍କୁ ଗ୍ୟାରେ ପହଞ୍ଚିଛି।",
-      "Beam Search (k=4)": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ଥିତ୍ରେ ଏହି ମାମଲାରୁ ଘଟିଛି ।"
+      "source": "There is nothing on the ground.",
+      "reference": "ଜମି ବାଡ଼ି କିଛି ନାହିଁ ।",
+      "hypothesis": "କିଛି ନାହିଁ।"
     },
     {
-      "Source": "I wanted to earn more.",
-      "Reference": "ମୋ ଅଧିକ ପାଇବାର ଥିଲା ।",
-      "Greedy Output": "ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମୁଁ ମ",
-      "Beam Search (k=4)": "ସେମାନଙ୍କୁ ମିଳିଛି ।"
+      "source": "BJP media cell head and Rajya Sabha member Anil Baluni dismissed the charge.",
+      "reference": "ଭାଜପା ନ୍ୟାସନାଲ ମିଡିଆ ମୁଖ୍ୟ ତଥା ରାଜ୍ୟସଭା ସାଂସଦ ଅନିଲ ବାଲୁନିଙ୍କୁ ଏହି ବଙ୍ଗଳା ଦିଆଯାଇଛି ।",
+      "hypothesis": "ବିଜେପି ବିର୍ୟକ୍ତାରୀଙ୍କୁ ବିଭିନ୍ନ୍ଦ୍ର ବିଧାନ୍ତି କରିଥିଲେ।"
     }
   ],
   "techniques": [

@@ -3,6 +3,9 @@ import sys
 import time
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -10,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
 import torch
 
 from configs.base import CHECKPOINT_DIR, DATA_PROCESSED_DIR, REPORTS_DIR
-from src.evaluation.bleu import corpus_bleu
+from src.evaluation.bleu import corpus_bleu, corpus_chrf
 from src.evaluation.sample_translations import select_samples, translate_samples
 from src.inference.greedy_decode import greedy_decode
 from src.tokenization.tokenizer_utils import encode, load_tokenizer
@@ -39,8 +42,10 @@ def main():
     elapsed = time.time() - start
 
     bleu = corpus_bleu(hyp_ids, ref_ids, or_tok)
+    chrf = corpus_chrf(hyp_ids, ref_ids, or_tok)
     print(f"decoded {len(test_df)} test examples in {elapsed:.1f}s")
     print(f"BLEU: {bleu.score:.2f}  ({bleu})")
+    print(f"chrF++: {chrf.score:.2f}  ({chrf})")
 
     rows = select_samples(test_path=DATA_PROCESSED_DIR / "test.parquet", n=5)
     samples = translate_samples(model, rows)
@@ -49,6 +54,8 @@ def main():
     out = {
         "bleu_score": bleu.score,
         "bleu_signature": str(bleu),
+        "chrf_score": chrf.score,
+        "chrf_signature": str(chrf),
         "num_test_examples": len(test_df),
         "decode_seconds": elapsed,
         "samples": samples,
