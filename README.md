@@ -167,9 +167,6 @@ Where each model's parameters live (embeddings, encoder/decoder blocks, output p
 Baseline's Noam warmup vs. the scaled model's cosine schedule with warmup.
 ![Learning rate schedule comparison](docs/figures/analysis_lr_schedules.png)
 
-### Baseline training loss (from the results notebook)
-![Baseline model loss curve](docs/figures/analysis_baseline_loss_curve.png)
-
 ## Project Structure
 
 ```
