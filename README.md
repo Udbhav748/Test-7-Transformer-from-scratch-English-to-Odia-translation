@@ -18,6 +18,7 @@ models side by side, and inspecting every training/evaluation result.
 - [Requirement Coverage](#requirement-coverage)
 - [Limitations](#limitations)
 - [Screenshots](#screenshots)
+- [Analysis Figures](#analysis-figures)
 - [Project Structure](#project-structure)
 - [Setup](#setup)
 - [Run the Dashboard](#run-the-dashboard)
@@ -90,17 +91,52 @@ causal-mask bug check on the training curves.
 Typing a sentence runs it through the model live, with token counts and decoding settings shown alongside the output.
 ![Translator tab, translated output](docs/screenshots/02_translator_result.png)
 
+### Translator — baseline vs. scaled, side by side
+Both models translating the same sentence at once, with per-model latency and token stats.
+![Translator tab, side-by-side model comparison](docs/screenshots/02b_translator_side_by_side.png)
+
+### Translator — cross-attention heatmap
+Which English source tokens the model attended to while generating each Odia subword — the "extra credit" attention visualization.
+![Translator tab, cross-attention alignment heatmap](docs/screenshots/02c_translator_attention_heatmap.png)
+
 ### Model Comparison
-Baseline vs. scaled model, side by side — parameter counts, loss curves, architecture table, and example translations.
+Baseline vs. scaled model in full: KPI cards, loss curves, the 4-panel comparison figure, architecture table, and example translations.
 ![Model Comparison tab](docs/screenshots/03_model_comparison.png)
 
 ### Training & Benchmarks
-Training loss curve, BLEU score, and how translation quality changes with sentence length — including a confusion matrix testing whether sentence length alone predicts repetition failures.
+Training loss curve, BLEU score, quality-vs-sentence-length analysis, the BLEU distribution, and a confusion matrix testing whether sentence length alone predicts repetition failures.
 ![Training & Benchmarks tab](docs/screenshots/04_training_benchmarks.png)
 
 ### Architecture & Linguistics
 Why Odia needs more subword tokens than English, and how the text pipeline works.
 ![Architecture & Linguistics tab](docs/screenshots/05_architecture_linguistics.png)
+
+## Analysis Figures
+
+These are the underlying matplotlib figures generated from the training/eval JSON in `reports/` —
+the same charts shown in the dashboard and the results notebook, at full resolution.
+
+### Dataset EDA
+Sentence-length distributions (words and subwords), the data cleaning funnel (58,000 raw pairs → 40,000 final), and corpus vocabulary stats.
+![Dataset EDA: length distributions, cleaning funnel, vocab stats](docs/figures/analysis_dataset_eda.png)
+
+### Full baseline-vs-scaled comparison
+Loss curves, compute/size comparison, architecture spec table, and qualitative output comparison in one figure.
+![Full baseline vs. scaled comparison](docs/figures/analysis_full_comparison.png)
+
+### Training loss curves (full scale + zoomed)
+![Training and validation loss curves](docs/figures/analysis_loss_curves.png)
+
+### Parameter breakdown by layer
+Where each model's parameters live (embeddings, encoder/decoder blocks, output projection) and the effect of weight tying.
+![Layer-by-layer parameter breakdown](docs/figures/analysis_param_breakdown.png)
+
+### Learning rate schedules
+Baseline's Noam warmup vs. the scaled model's cosine schedule with warmup.
+![Learning rate schedule comparison](docs/figures/analysis_lr_schedules.png)
+
+### Baseline training loss (from the results notebook)
+![Baseline model loss curve](docs/figures/analysis_baseline_loss_curve.png)
 
 ## Project Structure
 
@@ -134,6 +170,7 @@ reports/                    Results (tracked in git)
 └── figures/                  Generated comparison charts (gitignored, regenerate via scripts)
 
 docs/screenshots/           Dashboard screenshots used in this README
+docs/figures/               Full-resolution analysis figures used in this README
 
 data/, tokenizers/, checkpoints/   Generated locally by the pipeline (gitignored)
 ```
