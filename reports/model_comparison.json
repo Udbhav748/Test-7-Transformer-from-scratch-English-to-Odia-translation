@@ -53,15 +53,15 @@
     "baseline": {
       "Encoder Emb": 1024000,
       "Decoder Emb": 1024000,
-      "Encoder Blocks": 397568,
-      "Decoder Blocks": 530944,
+      "Encoder Blocks": 396544,
+      "Decoder Blocks": 529152,
       "Output Projection": 1032000
     },
     "scaled": {
       "Encoder Emb": 2048000,
       "Decoder Emb": 2048000,
-      "Encoder Blocks": 3162112,
-      "Decoder Blocks": 4217856,
+      "Encoder Blocks": 3159552,
+      "Decoder Blocks": 4214272,
       "Output Projection": 0
     }
   },
