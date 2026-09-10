@@ -32,9 +32,14 @@ models side by side, and inspecting every training/evaluation result.
 
 Standard encoder-decoder Transformer, built layer by layer in PyTorch — every attention block,
 mask, and positional encoding is hand-implemented rather than using `nn.Transformer` or
-`nn.MultiheadAttention`. Two versions are trained: a smaller baseline (Post-LN, untied weights)
-and a larger scaled model (Pre-LN, weight tying) — see [Results](#results) below for how they
+`nn.MultiheadAttention`. Two versions are trained: a smaller baseline (`d_model=128`, 4 heads,
+2 encoder + 2 decoder blocks — matching the assignment brief's numbers exactly) and a larger
+scaled model (`d_model=256`, 8 heads, 4+4 blocks) — see [Results](#results) below for how they
 compare.
+
+The baseline specifically uses **Post-LN** (norm *after* each residual add), not the more common
+Pre-LN, because that's the layer ordering the brief itself describes. The scaled model switches to
+Pre-LN and adds weight tying once the "match the brief exactly" constraint is no longer the goal.
 
 ![Transformer architecture diagram](docs/figures/architecture_diagram.png)
 
@@ -64,6 +69,13 @@ credit for. The scaled model is architecturally stronger (Pre-LN, weight tying, 
 was trained for fewer epochs, so its raw greedy-decode scores are lower — beam search and
 repetition blocking close most of that gap, as shown live in the dashboard's Model Comparison tab
 (and in the 5 qualitative samples in `reports/scaled_eval_results.json`, which do use beam search).
+
+Each model's evaluation also includes 5 hand-picked sample translations
+(`reports/eval_results.json` / `reports/scaled_eval_results.json`) — 4 chosen at random from the
+test set and a 5th **deterministically selected from the ≥90th-percentile sentence length**, so
+there's always a genuinely hard, long example to look at rather than only easy short ones. That
+long-sentence case is what motivated the length-vs-quality study below.
+
 Full analysis is in [`reports/write_up.md`](reports/write_up.md).
 
 ## Requirement Coverage
@@ -157,6 +169,13 @@ Loss curves, compute/size comparison, architecture spec table, and qualitative o
 ![Full baseline vs. scaled comparison](docs/figures/analysis_full_comparison.png)
 
 ### Training loss curves (full scale + zoomed)
+This is also the causal-mask sanity check the assignment brief specifically warns about: if the
+decoder could "peek" at the token it's supposed to predict, validation loss would collapse toward
+zero — dramatically and suspiciously lower than training loss. Neither curve does that. The
+baseline's val and train losses track closely together (2.85 vs. 2.71 at the final epoch); the
+scaled model's val loss sits a little *below* train (3.56 vs. 3.63), which is the normal, expected
+effect of label smoothing inflating the reported training loss and dropout being active only
+during training — not the sharp collapse a real masking leak would cause.
 ![Training and validation loss curves](docs/figures/analysis_loss_curves.png)
 
 ### Parameter breakdown by layer
@@ -251,6 +270,15 @@ pytest tests/
 18 tests covering causal masking, model output shapes, repetition blocking, tokenizer round-trips,
 and a full training-loop smoke test (loss must actually decrease and the checkpoint must reload
 correctly).
+
+The masking tests (`tests/test_masks.py`) are worth calling out specifically, since a broken
+causal mask is the failure mode the assignment brief explicitly warns about:
+- `test_causal_leak_invariance_full_model` — changing a future token must not change the current
+  prediction, run through the full model end-to-end
+- `test_causal_mask_negative_control_has_teeth` — a deliberately *broken* mask is asserted to fail
+  the test, so the leak check above isn't just trivially passing
+- `test_decoder_self_attn_mask_explicit_coverage` / `test_cross_attn_mask_explicit_coverage` — the
+  mask tensors themselves are checked cell-by-cell against what they should allow and block
 
 ![pytest run — 18 passed](docs/screenshots/06_pytest_run.png)
 
