@@ -8,7 +8,7 @@ if str(REPO_ROOT) not in sys.path:
 
 import torch
 
-from configs.base import CHECKPOINT_DIR, REPORTS_DIR
+from configs.base import CHECKPOINT_DIR, EOS_ID, REPORTS_DIR, SOS_ID
 from src.inference.attention_extraction import translate_with_attention
 from src.tokenization.tokenizer_utils import decode, encode, load_tokenizer
 from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH
@@ -34,11 +34,23 @@ def main():
     en_tok = load_tokenizer(EN_TOKENIZER_PATH)
     or_tok = load_tokenizer(OR_TOKENIZER_PATH)
 
+    def readable_token(tok, token_id):
+        # decode() skips special tokens (returns ''), which would leave
+        # blank axis labels for <SOS>/<EOS> -- keep those literal instead.
+        if token_id == SOS_ID:
+            return "<SOS>"
+        if token_id == EOS_ID:
+            return "<EOS>"
+        return decode(tok, [token_id])
+
     examples = []
     for src_text in EXAMPLE_SOURCES:
         src_ids_list = encode(en_tok, src_text)
         src_ids = torch.tensor([src_ids_list])
-        source_tokens = en_tok.encode(src_text).tokens
+        # Decode each id individually rather than using the tokenizer's raw
+        # .tokens (byte-level BPE pieces like 'Ġà¬ķ') -- per-id decode()
+        # reconstructs clean, human-readable subword text for axis labels.
+        source_tokens = [readable_token(en_tok, i) for i in src_ids_list]
 
         result = translate_with_attention(model, src_ids)
         generated_ids = result["generated_ids"]
@@ -47,7 +59,7 @@ def main():
         # generated_ids[0] is <SOS>, which has no attention row (see
         # translate_with_attention); hypothesis_tokens therefore lines up
         # with generated_ids[1:], one token per attention_matrix row.
-        hypothesis_tokens = [or_tok.id_to_token(i) for i in generated_ids[1:]]
+        hypothesis_tokens = [readable_token(or_tok, i) for i in generated_ids[1:]]
         hypothesis_text = decode(or_tok, generated_ids)
 
         expected_shape = (len(hypothesis_tokens), len(source_tokens))
