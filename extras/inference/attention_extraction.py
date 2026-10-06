@@ -1,7 +1,8 @@
 import torch
 
-from configs.base import EOS_ID, GREEDY_MAX_DECODE_LEN, NO_REPEAT_NGRAM_SIZE, SOS_ID
-from src.inference.repetition import banned_ngram_tokens
+from configs.base import EOS_ID, GREEDY_MAX_DECODE_LEN, SOS_ID
+from extras.config import NO_REPEAT_NGRAM_SIZE
+from extras.inference.repetition import banned_ngram_tokens
 
 
 @torch.no_grad()

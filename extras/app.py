@@ -28,7 +28,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-ROOT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = Path(__file__).resolve().parents[1]
 
 # Color Palette (Linear / Stripe / Vercel Enterprise aesthetic)
 PRIMARY = "#2563EB"       # Classic Sapphire Blue
@@ -421,7 +421,7 @@ except Exception:
 # -----------------------------------------------------------------------------
 # Scaled Transformer Definition (Pre-LN + Weight Tying)
 # -----------------------------------------------------------------------------
-from src.model.scaled_transformer import (
+from extras.model.scaled_transformer import (
     EnhancedScaledTransformer,
     ScaledEmbeddings,
     ScaledFeedForward,
@@ -467,7 +467,7 @@ def load_scaled_components():
 
 def run_greedy_decode(model, src_tensor, max_len=64, no_repeat_size=3):
     from configs.base import EOS_ID, SOS_ID
-    from src.inference.repetition import banned_ngram_tokens
+    from extras.inference.repetition import banned_ngram_tokens
 
     tgt_ids = torch.tensor([[SOS_ID]], dtype=torch.long, device=src_tensor.device)
     for _ in range(max_len - 1):
@@ -488,7 +488,7 @@ def run_greedy_decode(model, src_tensor, max_len=64, no_repeat_size=3):
 
 def run_beam_search(model, src_tensor, beam_width=4, length_penalty=0.6, max_len=64, no_repeat_size=3):
     from configs.base import EOS_ID, SOS_ID
-    from src.inference.repetition import banned_ngram_tokens
+    from extras.inference.repetition import banned_ngram_tokens
 
     device = src_tensor.device
     beams = [([SOS_ID], 0.0)]
@@ -528,7 +528,7 @@ def run_beam_search(model, src_tensor, beam_width=4, length_penalty=0.6, max_len
 
 def run_attention_decode(model, src_tensor, is_scaled=False, max_len=64):
     from configs.base import EOS_ID, SOS_ID
-    from src.inference.repetition import banned_ngram_tokens
+    from extras.inference.repetition import banned_ngram_tokens
 
     device = src_tensor.device
     tgt_ids = torch.tensor([[SOS_ID]], dtype=torch.long, device=device)

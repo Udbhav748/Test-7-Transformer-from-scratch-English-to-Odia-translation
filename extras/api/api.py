@@ -7,7 +7,7 @@ nothing here trains or fits anything.
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from configs.base import CHECKPOINT_DIR, MAX_LEN
-from src.inference.beam_search import beam_search_decode
+from extras.inference.beam_search import beam_search_decode
 from src.inference.greedy_decode import greedy_decode
 from src.tokenization.tokenizer_utils import decode, encode, load_tokenizer
 from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH

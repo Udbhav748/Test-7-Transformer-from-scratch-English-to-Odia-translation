@@ -2,14 +2,14 @@ import json
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import torch
 
 from configs.base import CHECKPOINT_DIR, EOS_ID, REPORTS_DIR, SOS_ID
-from src.inference.attention_extraction import translate_with_attention
+from extras.inference.attention_extraction import translate_with_attention
 from src.tokenization.tokenizer_utils import decode, encode, load_tokenizer
 from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH
 from src.training.checkpoint import load_checkpoint

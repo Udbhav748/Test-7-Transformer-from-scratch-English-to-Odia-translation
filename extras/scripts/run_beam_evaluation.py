@@ -6,16 +6,17 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import torch
 
-from configs.base import BEAM_WIDTH, CHECKPOINT_DIR, DATA_PROCESSED_DIR, REPORTS_DIR
+from configs.base import CHECKPOINT_DIR, DATA_PROCESSED_DIR, REPORTS_DIR
+from extras.config import BEAM_WIDTH
 from src.evaluation.bleu import corpus_bleu, corpus_chrf
 from src.evaluation.sample_translations import select_samples, translate_samples
-from src.inference.beam_search import beam_search_decode
+from extras.inference.beam_search import beam_search_decode
 from src.tokenization.tokenizer_utils import encode, load_tokenizer
 from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH
 from src.training.checkpoint import load_checkpoint
