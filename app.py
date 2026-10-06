@@ -991,11 +991,6 @@ with tab_comparison:
 
     st.markdown("<div style='margin-top:1.5rem;'></div>", unsafe_allow_html=True)
 
-    # 4-Panel Master Benchmark Figure
-    fig_full = ROOT_DIR / "reports" / "figures" / "full_model_comparison.png"
-    if fig_full.exists():
-        st.image(str(fig_full), caption="Figure 1: Full Comparison Overview", use_container_width=True)
-
     fig_c1, fig_c2, fig_c3 = st.columns(3)
     fig_loss = ROOT_DIR / "docs" / "figures" / "notebook_comparison_loss.png"
     fig_param = ROOT_DIR / "docs" / "figures" / "notebook_comparison_params.png"
