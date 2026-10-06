@@ -1,3 +1,5 @@
+import random
+
 import pandas as pd
 from tokenizers import Tokenizer, decoders, models, pre_tokenizers, processors, trainers
 
@@ -6,15 +8,26 @@ from configs.base import (
     EOS_ID,
     OR_VOCAB_SIZE,
     PAD_ID,
+    RANDOM_SEED,
     SOS_ID,
     SPECIAL_TOKENS,
     TOKENIZER_DIR,
+    TOKENIZER_POOL_SIZE,
     UNK_ID,
 )
 from src.data.download import CANDIDATES_PATH
 
 EN_TOKENIZER_PATH = TOKENIZER_DIR / "en_bpe.json"
 OR_TOKENIZER_PATH = TOKENIZER_DIR / "or_bpe.json"
+
+
+def select_tokenizer_pool(candidates: pd.DataFrame) -> pd.DataFrame:
+    # Seeded random sample, so split.py can rebuild the exact same pool
+    # from CANDIDATES_PATH and exclude it before any val/test selection.
+    rng = random.Random(RANDOM_SEED)
+    indices = list(range(len(candidates)))
+    rng.shuffle(indices)
+    return candidates.iloc[indices[:TOKENIZER_POOL_SIZE]].reset_index(drop=True)
 
 
 def _train_one(texts: list[str], vocab_size: int) -> Tokenizer:
@@ -48,13 +61,13 @@ def main() -> None:
         )
         return
 
-    df = pd.read_parquet(CANDIDATES_PATH)
+    pool = select_tokenizer_pool(pd.read_parquet(CANDIDATES_PATH))
 
-    en_tok = _train_one(df["src"].tolist(), EN_VOCAB_SIZE)
+    en_tok = _train_one(pool["src"].tolist(), EN_VOCAB_SIZE)
     en_tok.save(str(EN_TOKENIZER_PATH))
     print(f"saved English tokenizer ({en_tok.get_vocab_size()} tokens) to {EN_TOKENIZER_PATH}")
 
-    or_tok = _train_one(df["tgt"].tolist(), OR_VOCAB_SIZE)
+    or_tok = _train_one(pool["tgt"].tolist(), OR_VOCAB_SIZE)
     or_tok.save(str(OR_TOKENIZER_PATH))
     print(f"saved Odia tokenizer ({or_tok.get_vocab_size()} tokens) to {OR_TOKENIZER_PATH}")
 

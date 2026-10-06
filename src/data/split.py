@@ -13,7 +13,11 @@ from configs.base import (
     VAL_SIZE,
 )
 from src.data.download import CANDIDATES_PATH
-from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH
+from src.tokenization.train_tokenizer import (
+    EN_TOKENIZER_PATH,
+    OR_TOKENIZER_PATH,
+    select_tokenizer_pool,
+)
 from src.tokenization.tokenizer_utils import encode, load_tokenizer
 
 ESTIMATED_RETENTION = 0.780
@@ -27,6 +31,16 @@ def main() -> None:
     DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
     candidates = pd.read_parquet(CANDIDATES_PATH)
+
+    # Tokenizer training text must never overlap val/test, so drop the reserved
+    # pool and every candidate sharing any sentence with it before selection.
+    tokenizer_pool = select_tokenizer_pool(candidates)
+    tokenizer_texts = set(tokenizer_pool["src"]) | set(tokenizer_pool["tgt"])
+    shares_tokenizer_text = candidates["src"].isin(tokenizer_texts) | candidates["tgt"].isin(
+        tokenizer_texts
+    )
+    excluded_count = int(shares_tokenizer_text.sum())
+    candidates = candidates[~shares_tokenizer_text].reset_index(drop=True)
     pool_size = len(candidates)
 
     en_tok = load_tokenizer(EN_TOKENIZER_PATH)
@@ -75,10 +89,15 @@ def main() -> None:
     assert not (train_src & test_src)
     assert not (val_src & test_src)
 
+    held_out_texts = val_src | test_src | set(val_df["tgt"]) | set(test_df["tgt"])
+    assert not (held_out_texts & tokenizer_texts)
+
     train_df.to_parquet(TRAIN_PATH, index=False)
     val_df.to_parquet(VAL_PATH, index=False)
     test_df.to_parquet(TEST_PATH, index=False)
 
+    print(f"tokenizer pool size (excluded from splits): {len(tokenizer_pool)}")
+    print(f"candidates removed (tokenizer pool rows + text overlap): {excluded_count}")
     print(f"candidate pool size: {pool_size}")
     print(f"post-filter survivor count (MAX_LEN={MAX_LEN}): {survivor_count}")
     print(

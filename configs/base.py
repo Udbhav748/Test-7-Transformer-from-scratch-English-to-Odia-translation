@@ -31,8 +31,12 @@ TEST_SIZE = 2_000
 TOTAL_SIZE = TRAIN_SIZE + VAL_SIZE + TEST_SIZE  # 40,000
 
 # Over-collection target before the MAX_LEN filter, to net TOTAL_SIZE
-# pairs after ~78% measured retention at MAX_LEN=64.
-CANDIDATE_POOL_SIZE = 58_000
+# pairs after ~78% measured retention at MAX_LEN=64, once the
+# TOKENIZER_POOL_SIZE pairs reserved for tokenizer training are removed.
+CANDIDATE_POOL_SIZE = 75_000
+# Random candidates reserved for BPE training only; split.py never lets
+# these pairs (or any candidate sharing a sentence with them) reach val/test.
+TOKENIZER_POOL_SIZE = 15_000
 
 # --- Tokenization ---
 EN_VOCAB_SIZE = 8_000

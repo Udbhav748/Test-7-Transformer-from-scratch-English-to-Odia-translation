@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-from--scratch-ee4c2c)
 ![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-ff4b4b)
-![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-18%20in%20suite-blue)
 
 A sequence-to-sequence Transformer built **from scratch in PyTorch** (no `nn.Transformer`) for
 English → Odia machine translation, trained on the [AI4Bharat Samanantar](https://huggingface.co/datasets/ai4bharat/samanantar)
@@ -13,7 +13,7 @@ models side by side, and inspecting every training/evaluation result.
 **Author:** Udbhav Narawat
 
 > **TL;DR:** Baseline model matches the assignment's exact spec (`d=128`, 4 heads, N=2, Post-LN) and
-> hits every requirement — see [Requirement Coverage](#requirement-coverage) (28/28, 6 exceeded). A
+> hits every requirement — see [Requirement Coverage](#requirement-coverage) (28/28, 5 exceeded). A
 > second, larger model (11.5M params, Pre-LN, weight tying) is trained for comparison. Beam search
 > and repetition blocking are implemented and proven live to fix greedy decoding's failure mode —
 > see [Screenshots](#screenshots). Every number below is computed from the real 2,000-sentence test
@@ -44,9 +44,10 @@ mask, and positional encoding is hand-implemented rather than using `nn.Transfor
 scaled model (`d_model=256`, 8 heads, 4+4 blocks) — see [Results](#results) below for how they
 compare.
 
-The baseline specifically uses **Post-LN** (norm *after* each residual add), not the more common
-Pre-LN, because that's the layer ordering the brief itself describes. The scaled model switches to
-Pre-LN and adds weight tying once the "match the brief exactly" constraint is no longer the goal.
+The baseline is the assignment's section 5.6 architecture and uses **Post-LN** (norm *after* each
+residual add), not the more common Pre-LN, because that's the layer ordering the brief describes.
+Pre-LN and weight tying appear only in the scaled comparison model, which is not the section 5.6
+architecture.
 
 Below is the real, computed parameter breakdown of the instantiated baseline model — not an
 illustration, the actual output of `model.named_parameters()` grouped by component
@@ -107,12 +108,12 @@ that satisfies it in
 | Training | 5 | ✅ all met (1 exceeded) |
 | Inference | 3 | ✅ all met (2 exceeded) |
 | Evaluation | 4 | ✅ all met (1 exceeded) |
-| Odia-specific handling / extra credit | 3 | ✅ all met (2 exceeded) |
-| **Total** | **28** | **28/28 — 6 exceeded the requirement** |
+| Odia-specific handling / extra credit | 3 | ✅ all met (1 exceeded) |
+| **Total** | **28** | **28/28 — 5 exceeded the requirement** |
 
 "Exceeded" means the project does something beyond what was strictly asked for: beam search
-decoding, blocking repeated word loops at generation time, proper Unicode handling for Odia's
-script, and an explicit check that the decoder isn't secretly allowed to see the word it's
+decoding, blocking repeated word loops at generation time, a measured subword-tokenization
+analysis for Odia, a length-vs-quality study, and an explicit check that the decoder isn't secretly allowed to see the word it's
 supposed to predict (a common and easy-to-miss bug in causal masking).
 
 ## Limitations
@@ -121,7 +122,7 @@ supposed to predict (a common and easy-to-miss bug in causal masking).
   on a CPU; the scaled model is 11.5M parameters trained on a single GPU for 25 epochs. Production
   translation systems (e.g. AI4Bharat IndicTrans2, Meta NLLB-200) use 600M–1B+ parameters trained
   on tens of millions of sentence pairs — the BLEU scores here (2.60 / 0.25) reflect that gap in
-  scale, not a bug in the implementation (all 18 tests pass, including an explicit causal-mask
+  scale, not a bug in the implementation (the suite has 18 tests, including an explicit causal-mask
   leak check).
 - **Quality drops sharply on longer sentences.** Both models are prone to falling into repetition
   loops as source length increases (see the Training & Benchmarks tab) — beam search with n-gram
