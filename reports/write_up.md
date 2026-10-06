@@ -179,28 +179,23 @@ earlier run and have not been regenerated for the headline run.
 
 ### Discussion: the long-sentence example and limitations
 
-The clearest change from the baseline checkpoint is on the long sentence itself: the earlier
-18-epoch, no-smoothing, pure-greedy checkpoint produced a pure repetition loop
-(`ବିଜେପି ଓ ବିଜେପି ଓ ବିର ମିଧାନସଭାରେ ବିଜେପି ଓ...`, "BJP and BJP and..." repeating). The enhanced
-checkpoint instead produces a short, grammatically complete sentence that stays on-topic (BJP,
-Rajya Sabha) without looping. Three changes contributed to this: longer training (18 to 40 epochs),
-label smoothing, which gave the model better-calibrated probabilities, and decode-time 3-gram
-repetition blocking (`src/inference/repetition.py`) directly forbids the decoder from re-emitting an n-gram it
-has already produced, regardless of how confident it is in doing so.
+The headline run uses plain greedy decoding, so its long-sentence output can repeat. The long sample
+above drops the cause of the event and comes out much shorter than the reference. The earlier 18-epoch
+checkpoint, which had no smoothing and no blocking, looped outright on the same kind of input
+(`ବିଜେପି ଓ ବିଜେପି ଓ ବିର ମିଧାନସଭାରେ ବିଜେପି ଓ...`). The 3-gram blocking added later stopped that exact loop
+but is not part of the headline result.
 
-This is real progress, but it does not mean the underlying capacity limitation is solved — it means
-the most visually obvious symptom of it is suppressed. A full-test-set measurement
-(`reports/length_quality_analysis.json`, all 2,000 test examples, not just this one anecdote) still
-shows a clear decline in translation quality as source sentences get longer: mean per-sentence BLEU
-falls from 10.09 (3-5 word sentences) to 7.82 (6-8 words) to 6.69 (9-11 words) to 4.73 (12-15 words)
-to 3.14 (16-20 words) to 2.80 (21+ words), a Pearson correlation of -0.235 against source word
-length. A broader repetition-signature detector (any bigram recurring 3+ times anywhere in the
-output, not just consecutively) still climbs from 16.3% on the shortest sentences to 76.0% on the
-longest — repetition blocking prevents the exact-loop failure mode but cannot give the model
-semantic content it never had the capacity or data to learn in the first place. The two
-compounding causes remain (1) limited model capacity (`d=128`, only 2 decoder layers), deliberate
-per the "must fit class compute" constraint, and (2) a 36,000-pair training set, an order of
-magnitude smaller than production NMT systems use. Beam search (`src/inference/beam_search.py`,
-implemented as the assignment's bonus item) is available as a further mitigation and is exposed
-live in the dashboard's Translate tab alongside an attention-weight heatmap for inspecting exactly
-which source tokens the decoder relied on for any given translation.
+A full-test-set measurement on the headline checkpoint (`reports/length_quality_analysis.json`, all 2,000
+examples) shows the same decline with sentence length. Mean per-sentence BLEU falls from 8.78 (3-5 words)
+to 7.76 (6-8) to 5.79 (9-11) to 4.82 (12-15) to 3.58 (16-20) to 2.52 (21+). Pearson correlation with source
+word length is -0.20, and with subword length -0.25. The repetition-signature rate (any bigram recurring 3+
+times in one output) rises from 28.2% on the shortest sentences to 73.3% on the longest, and the overall rate
+is 43.9%.
+
+Beam search (`reports/beam_eval_results.json`, width 4, same test set) scores BLEU 2.65 and chrF++ 23.34,
+against 2.22 and 22.23 for greedy. It is the bonus decoder and is exposed on the translate page. Its brevity penalty is 0.733, so it produces shorter output than greedy, which is the main reason
+for the gain.
+
+The two causes remain: (1) limited capacity (`d=128`, 2 decoder layers), kept deliberately under the
+"must fit class compute" constraint, and (2) a 36,000-pair training set, far smaller than production NMT
+systems use. Neither decoder fixes the underlying capacity limit, and the length trend shows it.

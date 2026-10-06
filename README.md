@@ -72,6 +72,8 @@ Two models were trained and are compared throughout the dashboard and write-up:
 | Best validation loss | 1.81 | 3.56 |
 | Test BLEU (greedy, spec-pure) | 2.22 | 0.25 |
 | Test chrF++ (greedy, spec-pure) | 22.23 | 14.32 |
+| Test BLEU (beam search, bonus) | 2.65 | — |
+| Test chrF++ (beam search, bonus) | 23.34 | — |
 
 > The scaled model's 0.25 BLEU is a **greedy-decode** number, not the full picture — it was trained
 > for 25 epochs vs. the baseline's 40, and greedy decoding is exactly the failure mode this project
