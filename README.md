@@ -133,6 +133,12 @@ supposed to predict (a common and easy-to-miss bug in causal masking).
 
 ## Screenshots
 
+### Translate page (local model through the API)
+Type an English sentence and translate it with greedy (spec) or beam search (bonus). The page calls
+`server/api.py` on port 8000 through the Vite dev server. Run it with `python -m uvicorn server.api:app --port 8000`
+and `npm run dev` inside `ui/`.
+![Translate page with beam search output](docs/screenshots/06_translate_ui.png)
+
 ### Translator — empty state
 ![Translator tab, empty](docs/screenshots/01_translator_empty.png)
 
