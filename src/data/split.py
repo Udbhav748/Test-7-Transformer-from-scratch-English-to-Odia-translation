@@ -1,5 +1,4 @@
 import random
-import sys
 
 import pandas as pd
 
@@ -59,19 +58,15 @@ def main() -> None:
     retention_rate = survivor_count / pool_size if pool_size else 0.0
 
     if survivor_count < TOTAL_SIZE:
-        print(
-            f"WARNING: only {survivor_count} pairs survived MAX_LEN={MAX_LEN} filtering, "
-            f"below TOTAL_SIZE={TOTAL_SIZE}. Observed retention rate {retention_rate:.1%} vs "
-            f"the {ESTIMATED_RETENTION:.1%} estimate. Increase CANDIDATE_POOL_SIZE and re-run "
-            "download/train_tokenizer/split.",
-            file=sys.stderr,
+        raise RuntimeError(
+            f"only {survivor_count} pairs survived MAX_LEN={MAX_LEN} filtering, below "
+            f"TOTAL_SIZE={TOTAL_SIZE} (retention {retention_rate:.1%} vs {ESTIMATED_RETENTION:.1%} "
+            "estimate). Raise CANDIDATE_POOL_SIZE, then re-run download, train_tokenizer and split."
         )
-        final = survivors
-    else:
-        rng = random.Random(RANDOM_SEED)
-        indices = list(range(survivor_count))
-        rng.shuffle(indices)
-        final = survivors.iloc[indices[:TOTAL_SIZE]].reset_index(drop=True)
+    rng = random.Random(RANDOM_SEED)
+    indices = list(range(survivor_count))
+    rng.shuffle(indices)
+    final = survivors.iloc[indices[:TOTAL_SIZE]].reset_index(drop=True)
 
     final_count = len(final)
     n_train = min(TRAIN_SIZE, final_count)
