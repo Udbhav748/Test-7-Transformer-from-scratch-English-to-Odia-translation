@@ -13,7 +13,7 @@ models side by side, and inspecting every training/evaluation result.
 **Author:** Udbhav Narawat
 
 > **TL;DR:** Baseline model matches the assignment's exact spec (`d=128`, 4 heads, N=2, Post-LN) and
-> hits every requirement — see [Requirement Coverage](#requirement-coverage) (28/28, 5 exceeded). A
+> hits every requirement — see [Requirement Coverage](#requirement-coverage) (28/28, 4 exceeded). A
 > second, larger model (11.5M params, Pre-LN, weight tying) is trained for comparison. Beam search
 > and repetition blocking are implemented and proven live to fix greedy decoding's failure mode —
 > see [Screenshots](#screenshots). Every number below is computed from the real 2,000-sentence test
@@ -105,7 +105,7 @@ that satisfies it in
 |---|---|---|
 | Data preparation | 6 | ✅ all met |
 | Model architecture | 7 | ✅ all met |
-| Training | 5 | ✅ all met (1 exceeded) |
+| Training | 5 | ✅ all met |
 | Inference | 3 | ✅ all met (2 exceeded) |
 | Evaluation | 4 | ✅ all met (1 exceeded) |
 | Odia-specific handling / extra credit | 3 | ✅ all met (1 exceeded) |
