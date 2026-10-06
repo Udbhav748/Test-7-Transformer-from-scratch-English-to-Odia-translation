@@ -15,9 +15,10 @@ models side by side, and inspecting every training/evaluation result.
 > **TL;DR:** Baseline model matches the assignment's exact spec (`d=128`, 4 heads, N=2, Post-LN) and
 > hits every requirement — see [Requirement Coverage](#requirement-coverage) (28/28, 4 exceeded). A
 > second, larger model (11.5M params, Pre-LN, weight tying) is trained for comparison. Beam search
-> and repetition blocking are implemented and proven live to fix greedy decoding's failure mode —
-> see [Screenshots](#screenshots). Every number below is computed from the real 2,000-sentence test
-> set, not estimated.
+> and n-gram repetition blocking are implemented as options. The headline numbers below use plain
+> greedy decoding, as the spec asks; blocking is kept as a labelled extra, see
+> [Screenshots](#screenshots). Every number below is computed from the real 2,000-sentence test set,
+> not estimated.
 
 ## Contents
 
@@ -68,9 +69,9 @@ Two models were trained and are compared throughout the dashboard and write-up:
 | Hardware | Kaggle CPU | Tesla T4 GPU |
 | Epochs | 40 | 25 |
 | Training data | 36,000 pairs | 60,000 pairs |
-| Best validation loss | 2.85 | 3.56 |
-| Test BLEU (greedy) | 2.60 | 0.25 |
-| Test chrF++ (greedy) | 23.46 | 14.32 |
+| Best validation loss | 1.81 | 3.56 |
+| Test BLEU (greedy, spec-pure) | 2.22 | 0.25 |
+| Test chrF++ (greedy, spec-pure) | 22.23 | 14.32 |
 
 > The scaled model's 0.25 BLEU is a **greedy-decode** number, not the full picture — it was trained
 > for 25 epochs vs. the baseline's 40, and greedy decoding is exactly the failure mode this project
@@ -121,12 +122,12 @@ supposed to predict (a common and easy-to-miss bug in causal masking).
 - **Small model, trained from scratch, on limited compute.** The baseline is 4M parameters trained
   on a CPU; the scaled model is 11.5M parameters trained on a single GPU for 25 epochs. Production
   translation systems (e.g. AI4Bharat IndicTrans2, Meta NLLB-200) use 600M–1B+ parameters trained
-  on tens of millions of sentence pairs — the BLEU scores here (2.60 / 0.25) reflect that gap in
+  on tens of millions of sentence pairs — the BLEU scores here (2.22 / 0.25) reflect that gap in
   scale, not a bug in the implementation (the suite has 18 tests, including an explicit causal-mask
   leak check).
-- **Quality drops sharply on longer sentences.** Both models are prone to falling into repetition
-  loops as source length increases (see the Training & Benchmarks tab) — beam search with n-gram
-  blocking largely fixes this, greedy decoding does not.
+- **Quality drops on longer sentences.** The long-sentence sample comes out much shorter than the
+  reference and drops content. Earlier analysis of repetition loops was run before the headline
+  change and has not been regenerated.
 - **The scaled model's raw greedy BLEU is lower than the baseline's** — see [Results](#results)
   above for why, and `reports/write_up.md` for the full discussion.
 

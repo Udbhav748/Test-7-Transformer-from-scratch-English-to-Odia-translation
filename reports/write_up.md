@@ -129,12 +129,11 @@ what this architecture/data combination can achieve rather than being cut off mi
 
 Stated plainly so the numbers can be read against the spec:
 
-- **(a) Label smoothing (0.1).** The spec calls for plain cross-entropy. Label smoothing is used in
-  the loss, which raises the achievable loss floor, so training losses are not comparable to an
-  unsmoothed run.
-- **(b) Repetition blocking in decoding.** No-repeat 3-gram blocking is applied inside greedy
-  decoding. The headline BLEU of 2.60 is therefore not spec-pure greedy. The 2.19 baseline predates
-  blocking, so the two BLEU numbers are not a clean comparison of training changes alone.
+- **(a) Label smoothing: removed.** Label smoothing was used in the earlier runs (0.1). The
+  headline run uses plain cross-entropy (`LABEL_SMOOTHING = 0.0`), as the spec asks.
+- **(b) Repetition blocking: removed from the headline run.** The headline run uses plain greedy
+  decoding (`NO_REPEAT_NGRAM_SIZE = 0`). The earlier 2.60 BLEU used 3-gram blocking and is kept
+  only as history.
 - **(c) Embedding scaling.** Embeddings are scaled by sqrt(d_model). This is standard practice but
   is not stated in section 5.6.
 - **(d) Scaled comparison model.** The scaled model (d=256, 8 heads, 4+4 blocks, Pre-LN, weight
@@ -142,42 +141,41 @@ Stated plainly so the numbers can be read against the spec:
   architecture; the section 5.6 architecture is the baseline.
 - **(e) Evaluated checkpoint.** The 40-epoch run is the one evaluated. The 18-epoch run was an
   earlier run that was extended, not a separately evaluated final model.
-- **Tokenizer data hygiene gap.** The English and Odia tokenizers were trained on the full
-  candidate pool, which includes the validation and test pairs. This is a hold-out leak. It is
-  being fixed so tokenizers train on the train split only. The reported numbers have not been
-  regenerated yet and must be regenerated on Kaggle after this change. Treat the current BLEU and
-  loss figures as provisional until then.
+- **Tokenizer data hygiene: fixed.** Tokenizers now train on a 15,000-pair pool that the split
+  excludes from validation and test. The split asserts this. The candidate pool grew to 75,000 so the
+  40,000-pair target still survives the length filter. The headline run used this setup.
 
 ## Evaluation
 
-BLEU (sacrebleu, computed with identical postprocessing — strip special tokens, decode, normalize
-whitespace — applied to both hypotheses and references) over the full 2,000-pair test split, using
-greedy decoding with 3-gram repetition blocking (a decode-time addition described below):
+Headline run: spec-pure greedy decoding (no label smoothing, no n-gram blocking), 40 epochs. The
+evaluated checkpoint is the best-validation one (epoch 39, val loss 1.8082), not the final epoch 40
+(val loss 1.8132). Test split: 2,000 pairs. BLEU and chrF++ are computed with sacrebleu, using identical postprocessing
+(strip special tokens, decode, normalize whitespace) for hypotheses and references.
 
-**BLEU = 2.60** (`22.2/4.9/1.7/0.5` n-gram precisions, brevity penalty 0.829, hypothesis/reference
-length ratio 0.842)
+| metric | score |
+|---|---|
+| BLEU | **2.22** (`19.6/4.3/1.2/0.4` n-gram precisions, brevity penalty 0.901, hyp/ref length ratio 0.906) |
+| chrF++ | **22.23** |
+| test examples | 2,000 (decoded in 319 s) |
 
-| run | epochs | label smoothing | repetition blocking | BLEU |
-|---|---|---|---|---|
-| baseline | 18 | no | no | 2.19 |
-| enhanced | 40 | yes (0.1) | yes (n=3) | **2.60** |
+Earlier runs, for history only: a 18-epoch run without smoothing or blocking scored BLEU 2.19. A
+40-epoch run with smoothing and 3-gram blocking scored BLEU 2.60. The 2.60 figure is not spec-pure.
 
-A ~19% relative BLEU improvement from three changes that all stay within the assignment's
-`d=128, heads=4, N=2` compute constraint: none of them add model capacity. This is still a low
-score in absolute terms — expected for a deliberately small (4M-parameter) from-scratch transformer
-trained on 36,000 sentence pairs, with no pretraining and CPU-only training limiting how much
-compute the run could use. It is in line with what small from-scratch NMT systems trained on under
-100k pairs typically produce.
+### 5 sample translations (headline run)
 
-### 5 sample translations
+| # | Source (English) | Reference (Odia) | Model output (greedy) |
+|---|---|---|---|
+| 1 | Chennai Super Kings made the cut. | ଚେନ୍ନଇ ସୁପର କିଙ୍ଗ୍‌ସ ଟସ୍ ଜିତି ଫିଲ୍‌ଡିଂ କରିଥିଲା। | ସୁପରିମେ ଚେନ୍ନାଇରେନାରେ ତାଙ୍କୁ କ୍ନାଲିଟିସ କରିଛନ୍ତି। |
+| 2 | He died of excessive bleeding on the spot. | ପ୍ରଚୁର ରକ୍ତସ୍ରାବ ଯୋଗୁଁ ଘଟଣାସ୍ଥଳରେ ହିଁ ତାଙ୍କ ମୃତ୍ୟୁ ଘଟିଥିଲା। | ଫଳରେ ଘଟଣାସ୍ଥଳରେ ହିଁ ତାଙ୍କର ମୃତ୍ୟୁ ଘଟିଥିଲା। |
+| 3 | This, though, was not planned. | ତେବେ ଏହା ଆଦୌ ଯୋଜନାବଦ୍ଧ ନଥିଲା। | ଏହାକୁ ନେଇ କୌଣସି ପ୍ରସ୍ତୁତ କରାଯାଇନାହିଁ। |
+| 4 | Those injured have been admitted to a nearby hospital. | ଆହତ ଅବସ୍ଥାରେ ଉଦ୍ଧାର ହୋଇଥିବା ଶ୍ରମିକମାନଙ୍କୁ ନିକଟସ୍ଥ ଡାକ୍ତରଖାନାରେ ଭର୍ତ୍ତି କରାଯାଇଛି। | ଆହତ ହୋଇ ହସ୍ପିଟାଲରେ ଭର୍ତି କରାଯାଇଛି। |
+| 5 | **(long, ≥90th percentile)** On account of heavy rains in the city, the schools and colleges of Mumbai are shut. | ଲଗାଣ ବର୍ଷା ଯୋଗୁଁ ମୁମ୍ବାଇରେ ସ୍କୁଲ୍‌ ଓ କଲେଜ ବନ୍ଦ ରହିଛି ।  | ମୁମ୍ବାଇ ସ୍କୁଲ, କଲେଜ ବନ୍ଦ ରହିଛି । |
 
-| Source (English) | Reference (Odia) | Model output (greedy, repetition-blocked) |
-|---|---|---|
-| Shutting down might cause them to lose unsaved work. | ବନ୍ଦ କରିବା ଫଳରେ ହୁଏତ ସେମାନେ ତାଙ୍କର ଅସଂରକ୍ଷିତ କାର୍ଯ୍ୟକୁ ହରାଇପାରନ୍ତି। | କାର୍ଯ୍ୟ କାମ କରିବାରେ ସେମାନଙ୍କୁ ସମବେଦନା ଜଣାପଡିଛି । |
-| Bihar Chief Minister and JD(U) chief Nitish Kumar. | ବିହାର ମୁଖ୍ୟମନ୍ତ୍ରୀ ତଥା ଜେଡିୟୁ ମୁଖ୍ୟ ନୀତୀଶ କୁମାର ଜଣେ ଅତି ଚତୁର ରାଜନେତା। | ବିହାରରେ ମୁଖ୍ୟମନ୍ତ୍ରୀ ନୀତୀତିରୀତ୍ୱାରୀ ରାତିକାତାଷ୍ରେ ଅଛନ୍ତି । |
-| Students will be focussed. | ଛାତ୍ରଛାତ୍ରୀମାନେ ଉତ୍ସୃଖଳିତ ହେବେ । | ଛାତ୍ରଛାତାତିରୀମାନେ ଶିକ୍ଷାରୀଙ୍କୁ କଡ଼ା ହେବ । |
-| There is nothing on the ground. | ଜମି ବାଡ଼ି କିଛି ନାହିଁ । | କିଛି ବି କି ବାର୍ଯ୍ୟାଳୟ ନୁହେଁ। |
-| **(long sentence, >=90th percentile source length)** BJP media cell head and Rajya Sabha member Anil Baluni dismissed the charge. | ଭାଜପା ନ୍ୟାସନାଲ ମିଡିଆ ମୁଖ୍ୟ ତଥା ରାଜ୍ୟସଭା ସାଂସଦ ଅନିଲ ବାଲୁନିଙ୍କୁ ଏହି ବଙ୍ଗଳା ଦିଆଯାଇଛି । | ରାଜ୍ୟସଭାରେ ବିଜେପି ଓ ମୁଖ୍ୟ ବିଜୟୀ କରିଛିଜି । |
+Samples 2, 4 and 5 are close to the reference. Sample 5, the long sentence, comes out much shorter and
+drops the cause (heavy rain), which is the length limitation discussed below.
+
+Note: the length-vs-quality analysis and the training/attention figures below were generated on the
+earlier run and have not been regenerated for the headline run.
 
 ### Discussion: the long-sentence example and limitations
 
