@@ -24,7 +24,7 @@ def run_epoch(model, loader, loss_fn, optimizer=None, scheduler=None, device="cp
     model.train(is_train)
     total_loss, total_tokens = 0.0, 0
 
-    for src_ids, _src_pad_mask, tgt_ids, _tgt_pad_mask in loader:
+    for src_ids, tgt_ids in loader:
         src_ids, tgt_ids = src_ids.to(device), tgt_ids.to(device)
         decoder_input = tgt_ids[:, :-1]
         decoder_target = tgt_ids[:, 1:]

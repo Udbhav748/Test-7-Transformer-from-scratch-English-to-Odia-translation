@@ -30,20 +30,14 @@ class TranslationDataset(Dataset):
         return self.src_ids[idx], self.tgt_ids[idx]
 
 
-def _pad_batch(sequences: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+def _pad_batch(sequences: list[torch.Tensor]) -> torch.Tensor:
     max_len = max(seq.size(0) for seq in sequences)
     padded = torch.full((len(sequences), max_len), PAD_ID, dtype=torch.long)
-    # pad_mask: True at PAD positions, matching nn.MultiheadAttention's
-    # key_padding_mask convention where True positions are ignored
-    pad_mask = torch.ones((len(sequences), max_len), dtype=torch.bool)
     for i, seq in enumerate(sequences):
         padded[i, :seq.size(0)] = seq
-        pad_mask[i, :seq.size(0)] = False
-    return padded, pad_mask
+    return padded
 
 
 def collate_fn(batch: list[tuple[torch.Tensor, torch.Tensor]]):
     src_seqs, tgt_seqs = zip(*batch)
-    src_ids, src_pad_mask = _pad_batch(list(src_seqs))
-    tgt_ids, tgt_pad_mask = _pad_batch(list(tgt_seqs))
-    return src_ids, src_pad_mask, tgt_ids, tgt_pad_mask
+    return _pad_batch(list(src_seqs)), _pad_batch(list(tgt_seqs))

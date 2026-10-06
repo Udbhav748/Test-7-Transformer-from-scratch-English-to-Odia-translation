@@ -997,9 +997,9 @@ with tab_comparison:
         st.image(str(fig_full), caption="Figure 1: Full Comparison Overview", use_container_width=True)
 
     fig_c1, fig_c2, fig_c3 = st.columns(3)
-    fig_loss = ROOT_DIR / "reports" / "figures" / "comparison_loss_curves.png"
-    fig_param = ROOT_DIR / "reports" / "figures" / "comparison_param_breakdown.png"
-    fig_lr = ROOT_DIR / "reports" / "figures" / "comparison_lr_schedules.png"
+    fig_loss = ROOT_DIR / "docs" / "figures" / "notebook_comparison_loss.png"
+    fig_param = ROOT_DIR / "docs" / "figures" / "notebook_comparison_params.png"
+    fig_lr = ROOT_DIR / "docs" / "figures" / "notebook_comparison_lr.png"
     with fig_c1:
         if fig_loss.exists():
             st.image(str(fig_loss), caption="Figure 2: Training Loss Over Time", use_container_width=True)

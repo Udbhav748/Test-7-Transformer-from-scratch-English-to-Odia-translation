@@ -109,7 +109,7 @@ comparable). The architecture was not changed — `d=128, heads=4, N=2` througho
 assignment's compute constraint. The final run took roughly 410-455 seconds/epoch, about 4.9 hours
 total, over the full 36,000-pair train split at batch size 128.
 
-![training and validation loss curve](figures/loss_curve.png)
+![training and validation loss and perplexity curves](../docs/figures/notebook_loss_perplexity.png)
 
 | epoch | train loss | val loss |
 |---|---|---|
@@ -124,6 +124,29 @@ training and no discontinuous drop — the expected shape for a correctly-masked
 opposite of the "suspiciously perfect" pattern the assignment warns is a leakage symptom. The curve
 flattens over the last ~10 epochs (val loss 2.8715 -> 2.8464), indicating the model is approaching
 what this architecture/data combination can achieve rather than being cut off mid-improvement.
+
+## Deviations from the assignment spec
+
+Stated plainly so the numbers can be read against the spec:
+
+- **(a) Label smoothing (0.1).** The spec calls for plain cross-entropy. Label smoothing is used in
+  the loss, which raises the achievable loss floor, so training losses are not comparable to an
+  unsmoothed run.
+- **(b) Repetition blocking in decoding.** No-repeat 3-gram blocking is applied inside greedy
+  decoding. The headline BLEU of 2.60 is therefore not spec-pure greedy. The 2.19 baseline predates
+  blocking, so the two BLEU numbers are not a clean comparison of training changes alone.
+- **(c) Embedding scaling.** Embeddings are scaled by sqrt(d_model). This is standard practice but
+  is not stated in section 5.6.
+- **(d) Scaled comparison model.** The scaled model (d=256, 8 heads, 4+4 blocks, Pre-LN, weight
+  tying) goes beyond the "start small" guidance. It is a comparison model, not the assignment
+  architecture; the section 5.6 architecture is the baseline.
+- **(e) Evaluated checkpoint.** The 40-epoch run is the one evaluated. The 18-epoch run was an
+  earlier run that was extended, not a separately evaluated final model.
+- **Tokenizer data hygiene gap.** The English and Odia tokenizers were trained on the full
+  candidate pool, which includes the validation and test pairs. This is a hold-out leak. It is
+  being fixed so tokenizers train on the train split only. The reported numbers have not been
+  regenerated yet and must be regenerated on Kaggle after this change. Treat the current BLEU and
+  loss figures as provisional until then.
 
 ## Evaluation
 
@@ -162,9 +185,9 @@ The clearest change from the baseline checkpoint is on the long sentence itself:
 18-epoch, no-smoothing, pure-greedy checkpoint produced a pure repetition loop
 (`ବିଜେପି ଓ ବିଜେପି ଓ ବିର ମିଧାନସଭାରେ ବିଜେପି ଓ...`, "BJP and BJP and..." repeating). The enhanced
 checkpoint instead produces a short, grammatically complete sentence that stays on-topic (BJP,
-Rajya Sabha) without looping. Two independent changes contributed to this: more training/label
-smoothing gave the model better-calibrated probabilities, and decode-time 3-gram repetition
-blocking (`src/inference/repetition.py`) directly forbids the decoder from re-emitting an n-gram it
+Rajya Sabha) without looping. Three changes contributed to this: longer training (18 to 40 epochs),
+label smoothing, which gave the model better-calibrated probabilities, and decode-time 3-gram
+repetition blocking (`src/inference/repetition.py`) directly forbids the decoder from re-emitting an n-gram it
 has already produced, regardless of how confident it is in doing so.
 
 This is real progress, but it does not mean the underlying capacity limitation is solved — it means
