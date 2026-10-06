@@ -12,12 +12,11 @@ models side by side, and inspecting every training/evaluation result.
 
 **Author:** Udbhav Narawat
 
-> **TL;DR:** Baseline model matches the assignment's exact spec (`d=128`, 4 heads, N=2, Post-LN) and
-> hits every requirement — see [Requirement Coverage](#requirement-coverage) (28/28, 4 exceeded). A
-> second, larger model (11.5M params, Pre-LN, weight tying) is trained for comparison. Beam search
-> and n-gram repetition blocking are implemented as options. The headline numbers below use plain
-> greedy decoding, as the spec asks; blocking is kept as a labelled extra, see
-> [Screenshots](#screenshots). Every number below is computed from the real 2,000-sentence test set,
+> **TL;DR:** The headline model matches the assignment's section 5.6 spec exactly (`d=128`, 4 heads,
+> N=2, Post-LN, plain cross-entropy, plain greedy decoding). On the 2,000-pair test set it scores
+> **BLEU 2.84** and **chrF++ 24.41**. The greedy output shows repetition loops on longer sentences,
+> which the write-up discusses. Beyond-spec work (the scaled model, beam search, n-gram blocking, the
+> translate UI and API) lives in [`extras/`](extras/). Every number below is computed from the real 2,000-sentence test set,
 > not estimated.
 
 ## Contents
@@ -42,8 +41,7 @@ Standard encoder-decoder Transformer, built layer by layer in PyTorch — every 
 mask, and positional encoding is hand-implemented rather than using `nn.Transformer` or
 `nn.MultiheadAttention`. Two versions are trained: a smaller baseline (`d_model=128`, 4 heads,
 2 encoder + 2 decoder blocks — matching the assignment brief's numbers exactly) and a larger
-scaled model (`d_model=256`, 8 heads, 4+4 blocks) — see [Results](#results) below for how they
-compare.
+scaled model (`d_model=256`, 8 heads, 4+4 blocks, in `extras/`) — see [Results](#results) below.
 
 The baseline is the assignment's section 5.6 architecture and uses **Post-LN** (norm *after* each
 residual add), not the more common Pre-LN, because that's the layer ordering the brief describes.
@@ -70,10 +68,9 @@ Two models were trained and are compared throughout the dashboard and write-up:
 | Epochs | 40 | 25 |
 | Training data | 36,000 pairs | 60,000 pairs |
 | Best validation loss | 1.81 | 3.56 |
-| Test BLEU (greedy, spec-pure) | 2.22 | 0.25 |
-| Test chrF++ (greedy, spec-pure) | 22.23 | 14.32 |
-| Test BLEU (beam search, bonus) | 2.65 | — |
-| Test chrF++ (beam search, bonus) | 23.34 | — |
+| Test BLEU (greedy, spec) | **2.84** | 0.25 |
+| Test chrF++ (greedy, spec) | **24.41** | 14.32 |
+| Test BLEU (beam search, extras) | not re-measured | — |
 
 > The scaled model's 0.25 BLEU is a **greedy-decode** number, not the full picture — it was trained
 > for 25 epochs vs. the baseline's 40, and greedy decoding is exactly the failure mode this project
@@ -88,11 +85,13 @@ character-level metric, useful alongside BLEU here since Odia is morphologically
 word/subword n-gram matching is harsh on near-miss inflections that chrF++ still gives partial
 credit for.
 
-Each model's evaluation also includes 5 hand-picked sample translations
-(`reports/eval_results.json` / `reports/scaled_eval_results.json`) — 4 chosen at random from the
-test set and a 5th **deterministically selected from the ≥90th-percentile sentence length**, so
-there's always a genuinely hard, long example to look at rather than only easy short ones. That
-long-sentence case is what motivated the length-vs-quality study below.
+The headline evaluation (`reports/eval_results.json`) includes 5 sample translations — 4 chosen at
+random from the test set and a 5th **deterministically selected from the ≥90th-percentile sentence
+length**. The length-vs-quality study (`reports/length_quality_analysis.json`) covers all 2,000 pairs.
+
+Length buckets (mean sentence BLEU, by source word count): 3–5 words **10.27**, 6–8 **7.69**,
+9–11 **7.12**, 12–15 **5.68**, 16–20 **4.68**, 21+ **3.40**. Overall mean sentence BLEU is 7.77, and
+37.4% of outputs contain a repeated bigram.
 
 Full analysis is in [`reports/write_up.md`](reports/write_up.md).
 
@@ -115,21 +114,20 @@ that satisfies it in
 | **Total** | **28** | **28/28 — 5 exceeded the requirement** |
 
 "Exceeded" means the project does something beyond what was strictly asked for: beam search
-decoding, blocking repeated word loops at generation time, a measured subword-tokenization
+a measured subword-tokenization
 analysis for Odia, a length-vs-quality study, and an explicit check that the decoder isn't secretly allowed to see the word it's
 supposed to predict (a common and easy-to-miss bug in causal masking).
 
 ## Limitations
 
-- **Small model, trained from scratch, on limited compute.** The baseline is 4M parameters trained
-  on a CPU; the scaled model is 11.5M parameters trained on a single GPU for 25 epochs. Production
-  translation systems (e.g. AI4Bharat IndicTrans2, Meta NLLB-200) use 600M–1B+ parameters trained
-  on tens of millions of sentence pairs — the BLEU scores here (2.22 / 0.25) reflect that gap in
-  scale, not a bug in the implementation (the suite has 18 tests, including an explicit causal-mask
-  leak check).
-- **Quality drops on longer sentences.** The long-sentence sample comes out much shorter than the
-  reference and drops content. Earlier analysis of repetition loops was run before the headline
-  change and has not been regenerated.
+- **Small model, trained from scratch, on limited compute.** The headline model has about 4M
+  parameters and trained for 40 epochs on a T4 GPU. Production translation systems (e.g. AI4Bharat
+  IndicTrans2, Meta NLLB-200) use 600M–1B+ parameters trained on tens of millions of sentence pairs.
+  The BLEU of 2.84 reflects that gap in scale, not a bug in the implementation (the causal-mask leak
+  check is in the test suite).
+- **Greedy decoding repeats on longer sentences.** Plain greedy output loops on some inputs (the
+  long-sentence sample repeats a phrase), and the repetition rate rises with length. Beam search and
+  n-gram blocking are in `extras/` and were not part of the headline result.
 - **The scaled model's raw greedy BLEU is lower than the baseline's** — see [Results](#results)
   above for why, and `reports/write_up.md` for the full discussion.
 
