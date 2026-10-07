@@ -148,32 +148,29 @@ whitespace) on hypotheses and references.
 |---|---|
 | BLEU | **2.84** (`22.5 / 5.5 / 1.5 / 0.4` n-gram precisions, brevity penalty 0.950, hyp/ref length ratio 0.951) |
 | chrF++ | **24.41** |
-| test examples | 2,000 (decoded in 294 s) |
+| test examples | 2,000 (decoded in 361 s) |
 
 ### 5 sample translations
 
-> **Selector note:** the table below was generated under an earlier version of the long-sentence
-> selector (≥90th-percentile source length, which could be as short as 16 words). The selector has
-> since been improved (`src/evaluation/sample_translations.py`) to prefer a source sentence of at
-> least 21 English words, falling back to the single longest available sentence -- unambiguously
-> long to a human reader rather than merely above a percentile. The samples below were not
-> regenerated under the new rule: re-evaluating locally with this development machine's current
-> checkpoint/test-split artifacts produced a different BLEU than the documented headline run
-> (a real discrepancy, consistent with the previously-identified provenance gap between this
-> machine's data/ artifacts and the exact ones from the real Kaggle run), so no new sample output
-> was generated from them rather than risk showing output misattributed to the real headline
-> checkpoint. BLEU/chrF++ above are the real, unmodified headline numbers.
+Generated from the exact headline checkpoint, test split, and tokenizers (verified: re-running the
+full 2,000-example evaluation against these exact artifacts reproduced BLEU and chrF++ bit-for-bit
+identical to the values above, down to the n-gram precisions and brevity penalty). Selector:
+`src/evaluation/sample_translations.py`, `LONG_SENTENCE_MIN_WORDS=21` -- sample 5 is deterministically
+a source sentence with at least 21 English words.
 
 | # | Source (English) | Reference (Odia) | Model output (greedy) |
 |---|---|---|---|
-| 1 | Chennai Super Kings made the cut. | ଚେନ୍ନଇ ସୁପର କିଙ୍ଗ୍‌ସ ଟସ୍ ଜିତି ଫିଲ୍‌ଡିଂ କରିଥିଲା। | ସୁପର ଚେନ୍ନାଇ ସୁପରକୁଟିଏ ସୁପର ମ୍ୟାଚ୍‌ରେ ସୁପରିକଳ୍ପ କରିଥିଲେ । |
-| 2 | He died of excessive bleeding on the spot. | ପ୍ରଚୁର ରକ୍ତସ୍ରାବ ଯୋଗୁଁ ଘଟଣାସ୍ଥଳରେ ହିଁ ତାଙ୍କ ମୃତ୍ୟୁ ଘଟିଥିଲା। | ଘଟଣାସ୍ଥଳରେ ସେଠାରେ ସେଠାରେ ସେଠାରେ ପହଞ୍ଚିଥିଲା। |
-| 3 | This, though, was not planned. | ତେବେ ଏହା ଆଦୌ ଯୋଜନାବଦ୍ଧ ନଥିଲା। | ତେବେ ଏହା କୌଣସି କାର୍ଯ୍ୟକାରୀ ହୋଇନଥିଲା। |
-| 4 | Those injured have been admitted to a nearby hospital. | ଆହତ ଅବସ୍ଥାରେ ଉଦ୍ଧାର ହୋଇଥିବା ଶ୍ରମିକମାନଙ୍କୁ ନିକଟସ୍ଥ ଡାକ୍ତରଖାନାରେ ଭର୍ତ୍ତି କରାଯାଇଛି। | ସେମାନଙ୍କୁ ନିକଟସ୍ଥ ହସ୍ପିଟାଲରେ ଭର୍ତ୍ତି କରାଯାଇଛି। |
-| 5 | **(recorded headline long sample; 16 words — selected under the earlier ≥90th-percentile rule, before the selector was changed to the current ≥21-word rule)** On account of heavy rains in the city, the schools and colleges of Mumbai are shut. | ଲଗାଣ ବର୍ଷା ଯୋଗୁଁ ମୁମ୍ବାଇରେ ସ୍କୁଲ୍‌ ଓ କଲେଜ ବନ୍ଦ ରହିଛି ।  | ମୁମ୍ବାଇରେ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହୋଇଛି ।  |
+| 1 | Besides, he has not opposed the ruling BJD or its supremo and Chief Minister Naveen Patnaik. | ଏପରିକି ଶାସକ ବିଜେଡ଼ି ଓ ଏହାର ନେତା ମୁଖ୍ୟମନ୍ତ୍ରୀ ନବୀନ ପଟ୍ଟନାୟକଙ୍କୁ ମଧ୍ୟ ସେ ଛାଡ଼ି ନାହାନ୍ତି। | ଏହା ସହିତ ସେ ବିଜେଡି ମୁଖ୍ୟମନ୍ତ୍ରୀ ନବୀନ ପଟ୍ଟନାୟକଙ୍କୁ ବିରୋଧ କରିଛନ୍ତି । |
+| 2 | Employees have been assigned this job. | ତେବେ ଏହି ପଦବୀରେ କର୍ମଚାରୀଙ୍କୁ ନିଯୁକ୍ତି ମିଳିଛି । | ଏହି କାର୍ଯ୍ୟକ୍ରମ ସଂପୂର୍ଣ୍ଣ ହୋଇଛି । |
+| 3 | How do you feel at this juncture? | ଏବେ ତୁମକୁ କେମିତି ଲାଗୁଛି ଏହି ବିୟୋଗ ? | ଏହି ବିନ୍ୟାସ କେମିତି କରିବେ କେମିତି କରିବେ ? |
+| 4 | The CM inaugurated many road construction projects on the occasion. | ଏହି ଅବସରରେ ମୁଖ୍ୟମନ୍ତ୍ରୀ ଅନେକ ଲୋକାଭିମୁଖି ପ୍ରକଳ୍ପର ଶିଳାନ୍ୟାସ କରିଛନ୍ତି । | ଏହି ଅବସରରେ ରାସ୍ତାରେ ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ ରାସ୍ତାରେ ରାସ୍ତାରେ ରାସ୍ତାରେ ପ୍ରକଳ୍ପ ଦେଇଛନ୍ତି। |
+| 5 | **(long, 21 words)** Those that were numbered of them, even of the tribe of Gad, were forty and five thousand six hundred and fifty. | ଗାଦ ଗୋଷ୍ଠୀର ପୁରୁଷ ଲୋକମାନଙ୍କ ମାଟେ ସଂଖ୍ଯା , | ସେମାନଙ୍କ ପାଞ୍ଚ,000 ଜଣେ ପାଞ୍ଚ,000 ଓଟ, 19,000 ମଷେନ୍ଦ୍ର,000 ଓଟ,000 ମଷେରେ ଥିଲେ। |
 
-Samples 3 and 4 are close in meaning to the reference. Samples 2 and 5 repeat a word or phrase, which
-is the greedy loop failure the length analysis measures.
+Sample 1 captures the gist (BJD, Naveen Patnaik, opposition) without matching the reference's exact
+phrasing. Samples 3 and 4 show the greedy loop failure directly: 3 repeats "କେମିତି କରିବେ" and 4
+repeats "ରାସ୍ତାରେ" four times. Sample 5, the long one, degenerates into repeated numeric tokens and
+loses the source's content almost entirely -- the clearest single illustration of the length-vs-quality
+decline the next section measures across the whole test set.
 
 ### Length vs quality (all 2,000 test pairs)
 

@@ -4,32 +4,32 @@
   "chrf_score": 24.411979557918343,
   "chrf_signature": "chrF2++ = 24.41",
   "num_test_examples": 2000,
-  "decode_seconds": 294.0771813392639,
+  "decode_seconds": 361.11009979248047,
   "samples": [
     {
-      "source": "Chennai Super Kings made the cut.",
-      "reference": "ଚେନ୍ନଇ ସୁପର କିଙ୍ଗ୍‌ସ ଟସ୍ ଜିତି ଫିଲ୍‌ଡିଂ କରିଥିଲା।",
-      "hypothesis": "ସୁପର ଚେନ୍ନାଇ ସୁପରକୁଟିଏ ସୁପର ମ୍ୟାଚ୍‌ରେ ସୁପରିକଳ୍ପ କରିଥିଲେ ।"
+      "source": "Besides, he has not opposed the ruling BJD or its supremo and Chief Minister Naveen Patnaik.",
+      "reference": "ଏପରିକି ଶାସକ ବିଜେଡ଼ି ଓ ଏହାର ନେତା ମୁଖ୍ୟମନ୍ତ୍ରୀ ନବୀନ ପଟ୍ଟନାୟକଙ୍କୁ ମଧ୍ୟ ସେ ଛାଡ଼ି ନାହାନ୍ତି।",
+      "hypothesis": "ଏହା ସହିତ ସେ ବିଜେଡି ମୁଖ୍ୟମନ୍ତ୍ରୀ ନବୀନ ପଟ୍ଟନାୟକଙ୍କୁ ବିରୋଧ କରିଛନ୍ତି ।"
     },
     {
-      "source": "He died of excessive bleeding on the spot.",
-      "reference": "ପ୍ରଚୁର ରକ୍ତସ୍ରାବ ଯୋଗୁଁ ଘଟଣାସ୍ଥଳରେ ହିଁ ତାଙ୍କ ମୃତ୍ୟୁ ଘଟିଥିଲା।",
-      "hypothesis": "ଘଟଣାସ୍ଥଳରେ ସେଠାରେ ସେଠାରେ ସେଠାରେ ପହଞ୍ଚିଥିଲା।"
+      "source": "Employees have been assigned this job.",
+      "reference": "ତେବେ ଏହି ପଦବୀରେ କର୍ମଚାରୀଙ୍କୁ ନିଯୁକ୍ତି ମିଳିଛି ।",
+      "hypothesis": "ଏହି କାର୍ଯ୍ୟକ୍ରମ ସଂପୂର୍ଣ୍ଣ ହୋଇଛି ।"
     },
     {
-      "source": "This, though, was not planned.",
-      "reference": "ତେବେ ଏହା ଆଦୌ ଯୋଜନାବଦ୍ଧ ନଥିଲା।",
-      "hypothesis": "ତେବେ ଏହା କୌଣସି କାର୍ଯ୍ୟକାରୀ ହୋଇନଥିଲା।"
+      "source": "How do you feel at this juncture?",
+      "reference": "ଏବେ ତୁମକୁ କେମିତି ଲାଗୁଛି ଏହି ବିୟୋଗ ?",
+      "hypothesis": "ଏହି ବିନ୍ୟାସ କେମିତି କରିବେ କେମିତି କରିବେ ?"
     },
     {
-      "source": "Those injured have been admitted to a nearby hospital.",
-      "reference": "ଆହତ ଅବସ୍ଥାରେ ଉଦ୍ଧାର ହୋଇଥିବା ଶ୍ରମିକମାନଙ୍କୁ ନିକଟସ୍ଥ ଡାକ୍ତରଖାନାରେ ଭର୍ତ୍ତି କରାଯାଇଛି।",
-      "hypothesis": "ସେମାନଙ୍କୁ ନିକଟସ୍ଥ ହସ୍ପିଟାଲରେ ଭର୍ତ୍ତି କରାଯାଇଛି।"
+      "source": "The CM inaugurated many road construction projects on the occasion.",
+      "reference": "ଏହି ଅବସରରେ ମୁଖ୍ୟମନ୍ତ୍ରୀ ଅନେକ ଲୋକାଭିମୁଖି ପ୍ରକଳ୍ପର ଶିଳାନ୍ୟାସ କରିଛନ୍ତି ।",
+      "hypothesis": "ଏହି ଅବସରରେ ରାସ୍ତାରେ ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ ରାସ୍ତାରେ ରାସ୍ତାରେ ରାସ୍ତାରେ ପ୍ରକଳ୍ପ ଦେଇଛନ୍ତି।"
     },
     {
-      "source": "On account of heavy rains in the city, the schools and colleges of Mumbai are shut.",
-      "reference": "ଲଗାଣ ବର୍ଷା ଯୋଗୁଁ ମୁମ୍ବାଇରେ ସ୍କୁଲ୍‌ ଓ କଲେଜ ବନ୍ଦ ରହିଛି ।",
-      "hypothesis": "ମୁମ୍ବାଇରେ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହୋଇଛି ।"
+      "source": "Those that were numbered of them, even of the tribe of Gad, were forty and five thousand six hundred and fifty.",
+      "reference": "ଗାଦ ଗୋଷ୍ଠୀର ପୁରୁଷ ଲୋକମାନଙ୍କ ମାଟେ ସଂଖ୍ଯା ,",
+      "hypothesis": "ସେମାନଙ୍କ ପାଞ୍ଚ,000 ଜଣେ ପାଞ୍ଚ,000 ଓଟ, 19,000 ମଷେନ୍ଦ୍ର,000 ଓଟ,000 ମଷେରେ ଥିଲେ।"
     }
   ]
 }
