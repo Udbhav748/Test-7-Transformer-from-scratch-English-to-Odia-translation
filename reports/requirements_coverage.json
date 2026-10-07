@@ -80,7 +80,7 @@
      "requirement": "Fits class compute",
      "status": "met",
      "evidence": "Instantiating the real model against the real trained tokenizers (English 8,000 tokens, Odia 6,882 -- BPE undershot the configured 8,000 target on this corpus size) gives 3,718,370 parameters, all trainable. The full 36,000-pair, 40-epoch training run completed on a Kaggle Tesla T4 GPU at about 14s/epoch, roughly 9.4 minutes total at batch size 128.",
-     "where": "src/model/transformer.py, tests/test_model_shapes.py::test_param_count_matches_real_tokenizers, reports/write_up.md:18, reports/write_up.md:95-103, configs/base.py:1-12"
+     "where": "src/model/transformer.py, tests/test_model_shapes.py::test_param_count_matches_real_tokenizers, reports/write_up.md:18, reports/write_up.md:107-125, configs/base.py:55-59"
     },
     {
      "requirement": "Attention implemented from scratch (not a torch built-in)",
@@ -116,7 +116,7 @@
      "requirement": "Causal-mask bug check (decoder not peeking)",
      "status": "met",
      "evidence": "Beyond simply watching the loss curve, tests/test_masks.py contains four passing tests: a full-model leak-invariance test (logits at positions <= t are identical when target tokens after t are changed), a negative control that reruns the same check through a deliberately all-True mask and asserts it FAILS -- proving the invariance test is not vacuous -- plus position-by-position assertions that future keys and <PAD> keys are always blocked and valid causal keys never are.",
-     "where": "tests/test_masks.py:17-115, reports/write_up.md:81-91"
+     "where": "tests/test_masks.py:17-115, reports/write_up.md:95-105"
     },
     {
      "requirement": "Real training run completed, loss behaves correctly",
@@ -164,13 +164,13 @@
      "requirement": "Exactly 5 sample translations shown",
      "status": "met",
      "evidence": "reports/eval_results.json contains a 'samples' array of exactly 5 entries, each with source, reference and hypothesis, and the same 5 rows are reproduced as a table in the write-up; NUM_SAMPLE_TRANSLATIONS=5 in the config drives select_samples.",
-     "where": "reports/eval_results.json:6-32, reports/write_up.md:132-140, configs/base.py:77"
+     "where": "reports/eval_results.json:8-34, reports/write_up.md:139-152, configs/base.py:79"
     },
     {
      "requirement": "One long sentence among the samples",
      "status": "met",
-     "evidence": "select_samples deterministically reserves the 5th slot for a source sentence at or above the 90th percentile of test-split source word length (LONG_SENTENCE_PERCENTILE=0.90), drawing the other 4 from the remainder; the selected long example is 'BJP media cell head and Rajya Sabha member Anil Baluni dismissed the charge.' (12 English words).",
-     "where": "src/evaluation/sample_translations.py:10-24, reports/eval_results.json:27-31"
+     "evidence": "select_samples deterministically reserves the 5th slot for a source sentence at or above the 90th percentile of test-split source word length (LONG_SENTENCE_PERCENTILE=0.90), drawing the other 4 from the remainder; the selected long example in the current headline run is 'On account of heavy rains in the city, the schools and colleges of Mumbai are shut.' (16 English words).",
+     "where": "src/evaluation/sample_translations.py:10-24, reports/eval_results.json:8-34"
     },
     {
      "requirement": "Discussion of limitations",
