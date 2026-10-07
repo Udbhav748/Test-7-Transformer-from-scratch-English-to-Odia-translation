@@ -170,7 +170,7 @@ whitespace) on hypotheses and references.
 | 2 | He died of excessive bleeding on the spot. | ପ୍ରଚୁର ରକ୍ତସ୍ରାବ ଯୋଗୁଁ ଘଟଣାସ୍ଥଳରେ ହିଁ ତାଙ୍କ ମୃତ୍ୟୁ ଘଟିଥିଲା। | ଘଟଣାସ୍ଥଳରେ ସେଠାରେ ସେଠାରେ ସେଠାରେ ପହଞ୍ଚିଥିଲା। |
 | 3 | This, though, was not planned. | ତେବେ ଏହା ଆଦୌ ଯୋଜନାବଦ୍ଧ ନଥିଲା। | ତେବେ ଏହା କୌଣସି କାର୍ଯ୍ୟକାରୀ ହୋଇନଥିଲା। |
 | 4 | Those injured have been admitted to a nearby hospital. | ଆହତ ଅବସ୍ଥାରେ ଉଦ୍ଧାର ହୋଇଥିବା ଶ୍ରମିକମାନଙ୍କୁ ନିକଟସ୍ଥ ଡାକ୍ତରଖାନାରେ ଭର୍ତ୍ତି କରାଯାଇଛି। | ସେମାନଙ୍କୁ ନିକଟସ୍ଥ ହସ୍ପିଟାଲରେ ଭର୍ତ୍ତି କରାଯାଇଛି। |
-| 5 | **(long, ≥90th percentile)** On account of heavy rains in the city, the schools and colleges of Mumbai are shut. | ଲଗାଣ ବର୍ଷା ଯୋଗୁଁ ମୁମ୍ବାଇରେ ସ୍କୁଲ୍‌ ଓ କଲେଜ ବନ୍ଦ ରହିଛି ।  | ମୁମ୍ବାଇରେ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହୋଇଛି ।  |
+| 5 | **(recorded headline long sample; 16 words — selected under the earlier ≥90th-percentile rule, before the selector was changed to the current ≥21-word rule)** On account of heavy rains in the city, the schools and colleges of Mumbai are shut. | ଲଗାଣ ବର୍ଷା ଯୋଗୁଁ ମୁମ୍ବାଇରେ ସ୍କୁଲ୍‌ ଓ କଲେଜ ବନ୍ଦ ରହିଛି ।  | ମୁମ୍ବାଇରେ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହୋଇଛି ।  |
 
 Samples 3 and 4 are close in meaning to the reference. Samples 2 and 5 repeat a word or phrase, which
 is the greedy loop failure the length analysis measures.
