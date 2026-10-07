@@ -185,7 +185,7 @@ def main():
         },
         "cleaning_funnel": {
             "candidate_pool_after_cleaning": CANDIDATE_POOL_SIZE,
-            "survived_max_len_filter": 44_673,
+            "survived_max_len_filter": 45_858,  # from the spec-only Kaggle run's split.py log
             "final_sampled": len(full),
         },
         "descriptive_stats": {

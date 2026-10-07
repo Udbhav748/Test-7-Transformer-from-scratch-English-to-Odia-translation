@@ -79,7 +79,7 @@
     {
      "requirement": "Fits class compute",
      "status": "met",
-     "evidence": "Instantiating the real model against the two 8k tokenizers gives 4,005,696 parameters (all trainable), and the full 36,000-pair training run completed on a Kaggle CPU (the assigned GPU's compute architecture was incompatible with the pre-installed PyTorch build, so the notebook fell back to CPU automatically) at roughly 410-455 s/epoch, about 4.9 hours for the full 40-epoch run at batch size 128 -- no GPU required at all.",
+     "evidence": "Instantiating the real model against the real trained tokenizers (English 8,000 tokens, Odia 6,882 -- BPE undershot the configured 8,000 target on this corpus size) gives 3,718,370 parameters, all trainable. The full 36,000-pair, 40-epoch training run completed on a Kaggle Tesla T4 GPU at about 14s/epoch, roughly 9.4 minutes total at batch size 128.",
      "where": "src/model/transformer.py, tests/test_model_shapes.py::test_param_count_sanity_and_report, reports/write_up.md:18, reports/write_up.md:95-103"
     },
     {

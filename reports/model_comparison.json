@@ -9,10 +9,10 @@
    "d_ff": 512,
    "n_encoder_layers": 2,
    "n_decoder_layers": 2,
-   "trainable_parameters": 4005696,
+   "trainable_parameters": 3718370,
    "vocab_sizes": {
     "en": 8000,
-    "or": 8000
+    "or": 6882
    },
    "training_corpus": "36,000 pairs",
    "hardware": "Kaggle Tesla T4 GPU",
@@ -52,10 +52,10 @@
  "parameter_breakdown": {
   "baseline": {
    "Encoder Emb": 1024000,
-   "Decoder Emb": 1024000,
    "Encoder Blocks": 396544,
+   "Decoder Emb": 880896,
    "Decoder Blocks": 529152,
-   "Output Projection": 1032000
+   "Output Projection": 887778
   },
   "scaled": {
    "Encoder Emb": 2048000,

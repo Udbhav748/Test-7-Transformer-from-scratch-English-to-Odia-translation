@@ -15,7 +15,8 @@ FFN, each with residual + LayerNorm) -> linear projection + softmax.
 | decoder blocks (N) | 2 |
 | dropout | 0.1 |
 | output projection | separate `Linear(128, vocab)`, not tied to the target embedding (kept untied for strict compliance with "linear+softmax" as specified; weight tying is implemented as an easy constructor flag but is not the default) |
-| total parameters | 4,005,696 |
+| vocab sizes | English 8,000 (hit the target); Odia 6,882 (BPE undershot the configured 8,000 -- not enough distinct merges on this corpus size) |
+| total parameters | 3,718,370 (depends on the real Odia vocab above, not the configured target) |
 
 Layer normalization is post-norm (residual -> dropout -> LayerNorm), matching the original
 Vaswani et al. ordering the assignment is quoting, not the more recent pre-norm variant.

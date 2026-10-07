@@ -61,7 +61,7 @@ Two models were trained and are compared throughout the dashboard and write-up:
 
 | | Baseline | Scaled |
 |---|---|---|
-| Parameters | 4,005,696 | 11,469,824 |
+| Parameters | 3,718,370 | 11,469,824 |
 | Layers (enc + dec) | 2 + 2 | 4 + 4 |
 | Hidden size | 128 | 256 |
 | Attention heads | 4 | 8 |
