@@ -19,8 +19,8 @@
     {
      "requirement": "Subword tokenizers, one per language",
      "status": "met",
-     "evidence": "Two independent byte-level BPE tokenizers were trained and saved, tokenizers/en_bpe.json and tokenizers/or_bpe.json, each with a verified vocabulary size of exactly 8,000 tokens and identical special-token ids <PAD>=0, <SOS>=1, <EOS>=2, <UNK>=3 (asserted at training time).",
-     "where": "src/tokenization/train_tokenizer.py, configs/base.py:38-41, tokenizers/en_bpe.json, tokenizers/or_bpe.json"
+     "evidence": "Two independent byte-level BPE tokenizers were trained and saved, tokenizers/en_bpe.json and tokenizers/or_bpe.json. English reached the configured 8,000-token vocabulary, while Odia reached 6,882 tokens because the available tokenizer-training corpus did not require enough merges to reach the configured upper bound. Both tokenizers use the verified special-token IDs <PAD>=0, <SOS>=1, <EOS>=2, <UNK>=3 (asserted at training time).",
+     "where": "src/tokenization/train_tokenizer.py, configs/base.py:48-51, tokenizers/en_bpe.json, tokenizers/or_bpe.json"
     },
     {
      "requirement": "Padding",
