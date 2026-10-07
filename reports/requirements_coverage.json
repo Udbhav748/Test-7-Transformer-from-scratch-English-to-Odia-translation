@@ -80,7 +80,7 @@
      "requirement": "Fits class compute",
      "status": "met",
      "evidence": "Instantiating the real model against the real trained tokenizers (English 8,000 tokens, Odia 6,882 -- BPE undershot the configured 8,000 target on this corpus size) gives 3,718,370 parameters, all trainable. The full 36,000-pair, 40-epoch training run completed on a Kaggle Tesla T4 GPU at about 14s/epoch, roughly 9.4 minutes total at batch size 128.",
-     "where": "src/model/transformer.py, tests/test_model_shapes.py::test_param_count_sanity_and_report, reports/write_up.md:18, reports/write_up.md:95-103"
+     "where": "src/model/transformer.py, tests/test_model_shapes.py::test_param_count_matches_real_tokenizers, reports/write_up.md:18, reports/write_up.md:95-103, configs/base.py:1-12"
     },
     {
      "requirement": "Attention implemented from scratch (not a torch built-in)",
@@ -199,7 +199,7 @@
     {
      "requirement": "Subword tokenization discussion for a morphologically rich Indic language",
      "status": "exceeded",
-     "evidence": "The write-up devotes a dedicated section to it with measured, not asserted, numbers: at the same 8k vocabulary the pilot found English averaging 17.5 subword tokens (median 13) against 49.8 for Odia (median 39), which is why MAX_LEN=64 drops ~22-23% of pairs almost always on the Odia side; the section further covers multi-byte script encoding cost, suffixation-heavy morphology consuming BPE merge budget, and conjunct/virama normalization, plus the measured retention curve at MAX_LEN 32/48/64/80/96/128.",
+     "evidence": "The write-up devotes a dedicated section to it with real, full-corpus numbers from reports/eda_results.json (not the small early pilot, which is kept but labelled as non-representative): English averages 13.1 subword tokens (median 12) against 35.4 for Odia (median 34) on the actual 40,000-pair split, which is why MAX_LEN=64 drops about a quarter of pairs, almost always on the Odia side. The section also covers multi-byte script encoding cost, suffixation-heavy morphology consuming BPE merge budget (which is also why Odia's tokenizer undershot its configured 8,000-token vocab, reaching 6,882), and conjunct/virama normalization.",
      "where": "reports/write_up.md (Tokenization and Odia-specific notes), reports/tokenizer_pilot_stats.json, configs/base.py:1-6"
     }
    ]
@@ -210,6 +210,6 @@
   "met": 24,
   "exceeded": 4,
   "not_met": 0,
-  "tests_in_suite": 18
+  "tests_in_suite": 19
  }
 }

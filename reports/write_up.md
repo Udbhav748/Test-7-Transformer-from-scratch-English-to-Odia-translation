@@ -41,12 +41,17 @@ val/test share no sentence with the tokenizer-training pool.
 
 ## Tokenization and Odia-specific notes (extra credit)
 
-Two independent byte-level BPE tokenizers were trained (English, Odia), 8,000-token vocabulary
-each, rather than one shared vocabulary — English and Odia share almost no Unicode code points, so
-a shared BPE vocabulary would waste capacity relative to two per-language vocabularies at the same
-total size. Special tokens `<PAD>=0, <SOS>=1, <EOS>=2, <UNK>=3` are identical across both
-tokenizers, applied via a `TemplateProcessing` post-processor that automatically wraps every
-sequence as `<SOS> ... <EOS>`.
+Two independent byte-level BPE tokenizers were trained (English, Odia), configured for an 8,000
+token vocabulary each rather than one shared vocabulary — English and Odia share almost no Unicode
+code points, so a shared BPE vocabulary would waste capacity relative to two per-language
+vocabularies at the same total size. English reached the full 8,000. Odia reached only **6,882**:
+on the 15,000-pair pool reserved for tokenizer training (held out from validation and test), BPE
+ran out of merges that reduced the training objective before hitting 8,000 — expected behavior on
+a smaller corpus for a script this complex, not a bug, but it does mean the model's real embedding
+and output-projection sizes are set by 6,882, not the configured target (see Architecture above).
+Special tokens `<PAD>=0, <SOS>=1, <EOS>=2, <UNK>=3` are identical across both tokenizers, applied
+via a `TemplateProcessing` post-processor that automatically wraps every sequence as
+`<SOS> ... <EOS>`.
 
 Subword tokenization mattered far more for Odia than for English in this project, for reasons that
 go beyond a generic "morphologically rich language" caveat:
@@ -54,17 +59,20 @@ go beyond a generic "morphologically rich language" caveat:
 - **Script encoding cost.** Odia is a multi-byte UTF-8 script (Brahmic-derived, built from
   independent vowels, consonants, and combining vowel signs/virama sequences), so byte-level BPE
   starts from a much longer raw byte sequence per sentence than English's single-byte ASCII text.
-  A pilot measurement on a small sample tokenizer showed a stark asymmetry: English sentences
-  averaged 17.5 subword tokens (median 13) versus **49.8 for Odia (median 39)** at the same 8k
-  vocabulary size and comparable sentence content. This asymmetry is exactly why `MAX_LEN=64` — a
-  limit generous by English standards — still drops roughly a quarter of pairs: it is almost always
-  the Odia side, not the English side, that exceeds the limit.
+  The real, full-corpus measurement from the production tokenizers (`reports/eda_results.json`)
+  shows the asymmetry directly: English sentences average **13.1 subword tokens** (median 12)
+  versus **35.4 for Odia** (median 34) on the same 40,000-pair split. (A much smaller, early pilot
+  tokenizer — `reports/tokenizer_pilot_stats.json`, not the production tokenizer — measured 17.5
+  and 49.8 on a ~500-sentence sample; that number is kept for history but should not be read as the
+  real corpus statistic.) This asymmetry is exactly why `MAX_LEN=64` — a limit generous by English
+  standards — still drops roughly a quarter of pairs: it is almost always the Odia side, not the
+  English side, that exceeds the limit.
 - **Morphology.** Odia is suffixation-heavy (case marking, postpositions, verb agreement all attach
   to the stem rather than appearing as separate words), so a fixed-size BPE vocabulary has to spend
   more of its budget capturing productive suffix patterns instead of whole words, which a purely
-  frequency-driven BPE merge process does imperfectly at 8k merges trained on a few tens of
-  thousands of sentences — a corpus size that is adequate but not large by subword-tokenizer
-  training standards.
+  frequency-driven BPE merge process does imperfectly on a 15,000-sentence training pool — small
+  enough, it turns out, that Odia's merges ran out before reaching the configured 8,000-token
+  budget at all (see above).
 - **Conjunct/virama sequences and normalization.** Consonant conjuncts and vowel signs can, in
   principle, be represented by more than one equivalent Unicode byte sequence; NFC normalization
   before tokenizer training and before every encode call is what keeps "the same" Odia character
