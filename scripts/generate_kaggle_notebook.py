@@ -202,8 +202,9 @@ file that `python scripts/run_evaluation.py` runs on the CLI, not a
 reimplementation): loads the best-validation checkpoint and the English/Odia
 tokenizers, runs plain greedy decoding (`src/inference/greedy_decode.py` --
 not beam search) over the full 2,000-pair test split, computes corpus BLEU
-and chrF++, and selects exactly 5 sample translations, one of them
-deterministically the >=90th-percentile-length source sentence."""),
+and chrF++, and selects exactly 5 sample translations, with the 5th sample
+deterministically chosen from a source sentence with at least 21 English
+words when available, otherwise the longest available test sentence."""),
         code("""
 !cd /kaggle/working && python scripts/run_evaluation.py
 """),
