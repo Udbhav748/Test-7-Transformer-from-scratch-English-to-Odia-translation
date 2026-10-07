@@ -134,9 +134,8 @@ supposed to predict (a common and easy-to-miss bug in causal masking).
 
 ## Screenshots
 
-> The translate page screenshot is current. The other dashboard screenshots below come from the
-> earlier Streamlit runs, including the scaled comparison and the label-smoothing/blocking runs. They
-> are not the spec-only headline results (see [Results](#results)).
+> Regenerated from the spec-only headline checkpoint. The scaled-model panels show the separate
+> scaled comparison model (`extras/`), labelled as such in the dashboard.
 
 ### Translate page (local model through the API)
 Type an English sentence and translate it with greedy (spec) or beam search (bonus). The page calls
@@ -159,12 +158,10 @@ Both models translating the same sentence at once, with per-model latency and to
 Which English source tokens the model attended to while generating each Odia subword — the "extra credit" attention visualization.
 ![Translator tab, cross-attention alignment heatmap](docs/screenshots/02c_translator_attention_heatmap.png)
 
-### Translator — why greedy decoding breaks on long sentences
-Same 32-word sentence, same model. **Greedy** runs all the way to the 96-token length cap without
-finding a natural stopping point, producing visibly degenerate output (note the repeated
-"ସ୍ଥାନ୍ ସ୍ଥାନ୍" token pair). **Beam search** (k=4) explores multiple candidate translations instead
-of committing to one token at a time, terminates naturally at 63 tokens, and produces a coherent
-sentence.
+### Translator — greedy vs. beam search on a long sentence
+Same 16-word sentence, same (baseline) model. **Greedy** decodes to 52 subwords. **Beam search**
+(k=4) explores multiple candidate translations instead of committing to one token at a time, and
+stops earlier at 40 subwords with shorter, less repetitive output.
 
 ![Greedy decoding running away to the length cap](docs/screenshots/02d_greedy_repetition_loop.png)
 ![Beam search terminating naturally with a coherent output](docs/screenshots/02e_beam_search_fix.png)
@@ -183,9 +180,9 @@ Why Odia needs more subword tokens than English, and how the text pipeline works
 
 ## Analysis Figures
 
-> These figures were generated from earlier runs and the scaled comparison model. They are kept for
-> reference and do not match the spec-only headline checkpoint (BLEU 2.84, chrF++ 24.41). Regenerating
-> them needs the notebook run on the current checkpoint.
+> Regenerated from `notebooks/model_parameters_and_results.ipynb` against the spec-only headline
+> checkpoint (BLEU 2.84, chrF++ 24.41). The baseline-vs-scaled comparison panels use the separate
+> scaled model in `extras/`.
 
 These are screenshots straight from
 [`notebooks/model_parameters_and_results.ipynb`](notebooks/model_parameters_and_results.ipynb) —

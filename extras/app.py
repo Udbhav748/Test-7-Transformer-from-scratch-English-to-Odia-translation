@@ -934,9 +934,9 @@ with tab_comparison:
     st.markdown(
         """
         <div class="narrative-card">
-            We compared two versions of the model: a smaller <strong>Baseline</strong> (4.0M parameters, trained on
-            CPU) and a bigger <strong>Scaled</strong> model (11.5M parameters, trained on a GPU) with a few
-            architecture improvements built in.
+            We compared two versions of the model: a smaller <strong>Baseline</strong> (4.0M parameters, matching
+            section 5.6 exactly, trained on a Kaggle T4 GPU) and a bigger <strong>Scaled</strong> model (11.5M
+            parameters, trained on a GPU) with a few architecture improvements built in.
         </div>
         """,
         unsafe_allow_html=True,

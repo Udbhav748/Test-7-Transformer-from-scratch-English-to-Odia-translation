@@ -1,94 +1,94 @@
 {
-  "summary": {
-    "baseline": {
-      "name": "Course Spec §5.6 Baseline Transformer",
-      "checkpoint": "checkpoints/kaggle_run_best.pt",
-      "architecture": "Post-LN Seq2Seq Transformer (Untied)",
-      "d_model": 128,
-      "n_heads": 4,
-      "d_ff": 512,
-      "n_encoder_layers": 2,
-      "n_decoder_layers": 2,
-      "trainable_parameters": 4005696,
-      "vocab_sizes": {
-        "en": 8000,
-        "or": 8000
-      },
-      "training_corpus": "36,000 pairs",
-      "hardware": "Kaggle CPU",
-      "training_time": "4.9 hours",
-      "best_val_loss": 2.8461,
-      "epochs": 40,
-      "bleu_score": 2.601107059202081,
-      "max_len": 64,
-      "lr_schedule": "Noam (Warmup=900)"
-    },
-    "scaled": {
-      "name": "Option A: Enhanced Scaled Transformer",
-      "checkpoint": "checkpoints/scaled_model_best.pt",
-      "architecture": "Pre-LN Scaled Transformer with Weight Tying",
-      "d_model": 256,
-      "n_heads": 8,
-      "d_ff": 1024,
-      "n_encoder_layers": 4,
-      "n_decoder_layers": 4,
-      "trainable_parameters": 11469824,
-      "total_weight_elements": 13517824,
-      "vocab_sizes": {
-        "en": 8000,
-        "or": 8000
-      },
-      "training_corpus": "60,000 pairs (+66.7%)",
-      "hardware": "NVIDIA Tesla T4 GPU (FP16 AMP)",
-      "training_time": "23.0 minutes",
-      "best_val_loss": 3.5588831646535266,
-      "epochs": 25,
-      "bleu_score": 0.2500555218010942,
-      "max_len": 96,
-      "lr_schedule": "Cosine Annealing with Warmup (Warmup=1200, Min=1e-6)",
-      "checkpoint_averaging": "Stochastic Weight Averaging (SWA, top 3)"
-    }
+ "summary": {
+  "baseline": {
+   "name": "Course Spec §5.6 Baseline Transformer",
+   "checkpoint": "checkpoints/kaggle_run_best.pt",
+   "architecture": "Post-LN Seq2Seq Transformer (Untied)",
+   "d_model": 128,
+   "n_heads": 4,
+   "d_ff": 512,
+   "n_encoder_layers": 2,
+   "n_decoder_layers": 2,
+   "trainable_parameters": 4005696,
+   "vocab_sizes": {
+    "en": 8000,
+    "or": 8000
+   },
+   "training_corpus": "36,000 pairs",
+   "hardware": "Kaggle Tesla T4 GPU",
+   "training_time": "~9.4 minutes",
+   "best_val_loss": 1.5455,
+   "epochs": 40,
+   "bleu_score": 2.8391541272336083,
+   "max_len": 64,
+   "lr_schedule": "Noam (Warmup=900)"
   },
-  "parameter_breakdown": {
-    "baseline": {
-      "Encoder Emb": 1024000,
-      "Decoder Emb": 1024000,
-      "Encoder Blocks": 396544,
-      "Decoder Blocks": 529152,
-      "Output Projection": 1032000
-    },
-    "scaled": {
-      "Encoder Emb": 2048000,
-      "Decoder Emb": 2048000,
-      "Encoder Blocks": 3159552,
-      "Decoder Blocks": 4214272,
-      "Output Projection": 0
-    }
+  "scaled": {
+   "name": "Option A: Enhanced Scaled Transformer",
+   "checkpoint": "checkpoints/scaled_model_best.pt",
+   "architecture": "Pre-LN Scaled Transformer with Weight Tying",
+   "d_model": 256,
+   "n_heads": 8,
+   "d_ff": 1024,
+   "n_encoder_layers": 4,
+   "n_decoder_layers": 4,
+   "trainable_parameters": 11469824,
+   "total_weight_elements": 13517824,
+   "vocab_sizes": {
+    "en": 8000,
+    "or": 8000
+   },
+   "training_corpus": "60,000 pairs (+66.7%)",
+   "hardware": "NVIDIA Tesla T4 GPU (FP16 AMP)",
+   "training_time": "23.0 minutes",
+   "best_val_loss": 3.5588831646535266,
+   "epochs": 25,
+   "bleu_score": 0.2500555218010942,
+   "max_len": 96,
+   "lr_schedule": "Cosine Annealing with Warmup (Warmup=1200, Min=1e-6)",
+   "checkpoint_averaging": "Stochastic Weight Averaging (SWA, top 3)"
+  }
+ },
+ "parameter_breakdown": {
+  "baseline": {
+   "Encoder Emb": 1024000,
+   "Decoder Emb": 1024000,
+   "Encoder Blocks": 396544,
+   "Decoder Blocks": 529152,
+   "Output Projection": 1032000
   },
-  "sample_translations_comparison": [
-    {
-      "source": "Haryana minister bereaved",
-      "reference": "ହାରିଗଲେ ହରିଆଣାର ଅର୍ଥମନ୍ତ୍ରୀ",
-      "baseline_output": "ହରିଆଣା ହରିୟାରେ ମୁଖ୍ୟମନ୍ତ୍ରୀ",
-      "scaled_greedy": "ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ ପ୍ରତିତ୍ୟାରୀ",
-      "scaled_beam": "ପ୍ରଧାନମନ୍ତ୍ରୀ",
-      "linguistic_notes": "All three correctly identify this is about a government minister; only the baseline captures 'Haryana' (ହରିଆଣା). None fully match the reference on this terse, headline-style sentence -- a realistic example of the model's limits."
-    },
-    {
-      "source": "The residents of the locality are in a state of panic after the incident.",
-      "reference": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଲୋକେ ଉତ୍ତେଜନା ପ୍ରକାଶ କରିଛନ୍ତି।",
-      "baseline_output": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଅଞ୍ଚଳରେ ସେ ସୃଷ୍ଟି ଅଞ୍ଟାନ ସ୍ଟୀୟ ଲୋକେ ।",
-      "scaled_greedy": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ତାନାନେ ପ୍ରକାରୀଙ୍କୁ ଗ୍ୟାର କରୁଛି।",
-      "scaled_beam": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ଥିତ୍ରେ ଏହି ମାମଲାରୁ ଘଟିଛି ।",
-      "linguistic_notes": "All three correctly produce 'after the incident' (ଏହି ଘଟଣା ପରେ/ରେ). The scaled model with beam search stays closest to a coherent full sentence; the baseline and scaled-greedy outputs trail off into less relevant phrasing."
-    },
-    {
-      "source": "But how is it even possible?",
-      "reference": "ହେଲେ ତା’ କେମିତି ସମ୍ଭବ !",
-      "baseline_output": "କିନ୍ତୁ ଏହା ସମ୍ଭବ ହୋଇ ପାରିତ?",
-      "scaled_greedy": "କିନ୍ତୁ କିଛି କି କେହାରି କ’ଣି କାରେ ?",
-      "scaled_beam": "କିନ୍ତୁ କିଛି କି କେହାକୁ କେ ?",
-      "linguistic_notes": "The baseline's greedy output is a reasonable paraphrase this run. The scaled model's greedy decode is less fluent than its own beam-search output, illustrating why beam search matters even for short sentences."
-    }
-  ]
+  "scaled": {
+   "Encoder Emb": 2048000,
+   "Decoder Emb": 2048000,
+   "Encoder Blocks": 3159552,
+   "Decoder Blocks": 4214272,
+   "Output Projection": 0
+  }
+ },
+ "sample_translations_comparison": [
+  {
+   "source": "Haryana minister bereaved",
+   "reference": "ହାରିଗଲେ ହରିଆଣାର ଅର୍ଥମନ୍ତ୍ରୀ",
+   "baseline_output": "ହରିଆଣାର୍ଥ ମନ୍ତ୍ରୀ ହେଲେ ହରିଆଣା",
+   "scaled_greedy": "ମୁଖ୍ୟମନ୍ତ୍ରୀଙ୍କୁ ପ୍ରତିତ୍ୟାରୀ",
+   "scaled_beam": "ପ୍ରଧାନମନ୍ତ୍ରୀ",
+   "linguistic_notes": "The headline model (plain cross-entropy, plain greedy, no label smoothing or blocking) mentions Haryana but garbles the word order and misses 'bereaved'."
+  },
+  {
+   "source": "The residents of the locality are in a state of panic after the incident.",
+   "reference": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଲୋକେ ଉତ୍ତେଜନା ପ୍ରକାଶ କରିଛନ୍ତି।",
+   "baseline_output": "ଏହି ଘଟଣା ପରେ ସ୍ଥାନୀୟ ଲୋକେ ଆତଙ୍କୀ ମୃତ୍ୟୁ ଘଟିଛି ।",
+   "scaled_greedy": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ତାନାନେ ପ୍ରକାରୀଙ୍କୁ ଗ୍ୟାର କରୁଛି।",
+   "scaled_beam": "ଏହି ଘଟଣାରେ ପୁଲିସ୍ଥିତ୍ରେ ଏହି ମାମଲାରୁ ଘଟିଛି ।",
+   "linguistic_notes": "Captures 'after the incident' and 'residents/locals', but invents content ('death') not in the source -- a hallucination, not a paraphrase."
+  },
+  {
+   "source": "But how is it even possible?",
+   "reference": "ହେଲେ ତା’ କେମିତି ସମ୍ଭବ !",
+   "baseline_output": "ହେଲେ କେମିତି ସମ୍ଭବ ହେବ ବୋଲି କିପରି ?",
+   "scaled_greedy": "କିନ୍ତୁ କିଛି କି କେହାରି କ’ଣି କାରେ ?",
+   "scaled_beam": "କିନ୍ତୁ କିଛି କି କେହାକୁ କେ ?",
+   "linguistic_notes": "Close to the reference in meaning but adds an extra clause not in the source."
+  }
+ ]
 }
