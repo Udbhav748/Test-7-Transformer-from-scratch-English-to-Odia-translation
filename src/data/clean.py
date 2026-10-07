@@ -9,7 +9,16 @@ _ZWJ = "‍"
 _ZWNJ = "‌"
 _ZW_JOINERS = _ZWJ + _ZWNJ
 
-_EDGE_JOINER_RUN = re.compile(f"^[{_ZW_JOINERS}]+|[{_ZW_JOINERS}]+$")
+# \s* around the joiner run (not just the run itself) so a joiner artifact
+# separated from the true string boundary by whitespace -- common in real
+# scraped text, e.g. "  ‍‍Hello world‌  \n" -- still counts
+# as an edge joiner. Without it, a joiner preceded/followed only by
+# whitespace before the real boundary would be missed here and then
+# survive as the literal first/last character after normalize_whitespace
+# strips the whitespace around it. Any whitespace this consumes is
+# re-normalized by the normalize_whitespace() call that always follows
+# this function in clean_text().
+_EDGE_JOINER_RUN = re.compile(f"^\\s*[{_ZW_JOINERS}]+|[{_ZW_JOINERS}]+\\s*$")
 _INTERIOR_JOINER_RUN = re.compile(f"[{_ZW_JOINERS}]{{2,}}")
 _WHITESPACE_RUN = re.compile(r"\s+")
 

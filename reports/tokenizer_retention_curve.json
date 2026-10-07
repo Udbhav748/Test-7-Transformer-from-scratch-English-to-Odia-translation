@@ -1,0 +1,12 @@
+{
+ "measured_on": "real 58,000-pair Samanantar candidate sample (data/raw/candidates.parquet), with the production tokenizers (English 8,000 vocab, Odia 6,882 vocab) -- this is a different draw than the 75,000-pair pool used for the headline training run's split, but the same real corpus and the same real tokenizers, so the retention curve is representative.",
+ "sample_size": 58000,
+ "retention_at_max_len": {
+  "32": 35.4,
+  "48": 62.6,
+  "64": 76.9,
+  "80": 85.1,
+  "96": 90.4,
+  "128": 95.8
+ }
+}

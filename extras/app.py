@@ -934,9 +934,9 @@ with tab_comparison:
     st.markdown(
         """
         <div class="narrative-card">
-            We compared two versions of the model: a smaller <strong>Baseline</strong> (4.0M parameters, trained on
-            CPU) and a bigger <strong>Scaled</strong> model (11.5M parameters, trained on a GPU) with a few
-            architecture improvements built in.
+            We compared two versions of the model: a smaller <strong>Baseline</strong> (4.0M parameters, matching
+            section 5.6 exactly, trained on a Kaggle T4 GPU) and a bigger <strong>Scaled</strong> model (11.5M
+            parameters, trained on a GPU) with a few architecture improvements built in.
         </div>
         """,
         unsafe_allow_html=True,
@@ -1014,9 +1014,9 @@ with tab_comparison:
         {"Setting": "Attention Heads", "Baseline": "4 heads", "Scaled Model": "8 heads", "Why it matters": "Attends to more patterns at once"},
         {"Setting": "Feed-Forward Size", "Baseline": "512", "Scaled Model": "1024", "Why it matters": "More capacity to learn"},
         {"Setting": "Weight Tying", "Baseline": "Untied", "Scaled Model": "Tied to embeddings", "Why it matters": "Saves about 2M parameters"},
-        {"Setting": "Vocabulary Size", "Baseline": "4,000 En / 4,000 Or", "Scaled Model": "8,000 En / 8,000 Or", "Why it matters": "Handles longer Odia words better"},
+        {"Setting": "Vocabulary Size", "Baseline": "8,000 En / 6,882 Or (target was 8,000; Odia BPE undershot it)", "Scaled Model": "8,000 En / 8,000 Or", "Why it matters": "Handles longer Odia words better"},
         {"Setting": "Learning Rate Schedule", "Baseline": "Noam Warmup + Inverse Sqrt", "Scaled Model": "Warmup + Cosine Decay", "Why it matters": "Smoothly lowers the learning rate over training"},
-        {"Setting": "Checkpoint Selection", "Baseline": "Single Best Epoch", "Scaled Model": "Averaged Top 3", "Why it matters": "Helps the model generalize better"},
+        {"Setting": "Checkpoint Selection", "Baseline": "Single Best Epoch (lowest val loss)", "Scaled Model": "Single Best Epoch (lowest val loss)", "Why it matters": "Keeps the checkpoint that generalized best, not just the last one"},
     ])
     st.dataframe(comp_df, use_container_width=True, hide_index=True)
 

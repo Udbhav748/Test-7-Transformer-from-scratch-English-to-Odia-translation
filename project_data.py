@@ -14,8 +14,6 @@ from configs.base import (
     N_DECODER_LAYERS,
     DROPOUT,
     TIE_OUTPUT_PROJECTION,
-    EN_VOCAB_SIZE,
-    OR_VOCAB_SIZE,
     BATCH_SIZE_KAGGLE,
     NUM_EPOCHS_KAGGLE,
     WARMUP_STEPS,
@@ -26,9 +24,35 @@ from configs.base import (
     TEST_SIZE,
     TOTAL_SIZE,
 )
+from src.tokenization.tokenizer_utils import load_tokenizer
+from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH
 
 ROOT_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = ROOT_DIR / "reports"
+
+# Real vocab sizes from the trained tokenizers on disk, not the configured
+# target -- BPE training can undershoot the configured vocab_size on a small
+# corpus (it did for Odia: EN_VOCAB_SIZE/OR_VOCAB_SIZE in configs/base.py
+# are both 8000, but the Odia BPE trainer ran out of useful merges early).
+EN_VOCAB_SIZE = load_tokenizer(EN_TOKENIZER_PATH).get_vocab_size()
+OR_VOCAB_SIZE = load_tokenizer(OR_TOKENIZER_PATH).get_vocab_size()
+
+
+def _real_param_count() -> int:
+    from src.model.transformer import Seq2SeqTransformer
+
+    model = Seq2SeqTransformer(
+        src_vocab_size=EN_VOCAB_SIZE,
+        tgt_vocab_size=OR_VOCAB_SIZE,
+        d_model=D_MODEL,
+        n_heads=N_HEADS,
+        d_ff=D_FF,
+        n_encoder_layers=N_ENCODER_LAYERS,
+        n_decoder_layers=N_DECODER_LAYERS,
+        dropout=DROPOUT,
+        tie_output_projection=TIE_OUTPUT_PROJECTION,
+    )
+    return sum(p.numel() for p in model.parameters())
 
 HYPERPARAMS = {
     "d_model": D_MODEL,
@@ -44,8 +68,9 @@ HYPERPARAMS = {
     "num_epochs_kaggle": NUM_EPOCHS_KAGGLE,
     "warmup_steps": WARMUP_STEPS,
     "max_len": MAX_LEN,
-    # Measured from the trained model, not derivable from config alone.
-    "total_params": 4_005_696,
+    # Computed live against the real tokenizer vocab sizes above, not a
+    # hardcoded figure -- this is what the actual trained checkpoint has.
+    "total_params": _real_param_count(),
     "layer_norm_style": "post-norm (residual -> dropout -> LayerNorm)",
 }
 
@@ -57,8 +82,8 @@ DATA_STATS = {
     "total_size": TOTAL_SIZE,
     "max_len": MAX_LEN,
     # Measured from the actual data pipeline run, not derivable from config.
-    "retention_rate_pct": 77.0,
-    "retention_survivors": 44673,
+    "retention_rate_pct": 76.4,
+    "retention_survivors": 45858,
 }
 
 
@@ -67,16 +92,35 @@ def _load_json(path: Path):
         return json.load(f)
 
 
-_tokenizer_pilot_stats = _load_json(REPORTS_DIR / "tokenizer_pilot_stats.json")
+EDA_RESULTS = _load_json(REPORTS_DIR / "eda_results.json")
+
+# Built from the real, full-corpus measurement (reports/eda_results.json,
+# computed on the actual train/val/test split) and a real retention-vs-MAX_LEN
+# curve measured with the production tokenizers (reports/tokenizer_retention_curve.json).
+# reports/tokenizer_pilot_stats.json is an older, much smaller, separately
+# tokenized pilot sample -- it is kept on disk for history but intentionally
+# not used here, since mixing it into these live figures previously made a
+# non-representative sample look like the real corpus statistic.
+_retention_curve = _load_json(REPORTS_DIR / "tokenizer_retention_curve.json")
+_en_sub = EDA_RESULTS["descriptive_stats"]["en_subwords"]
+_or_sub = EDA_RESULTS["descriptive_stats"]["or_subwords"]
 TOKENIZER_STATS = {
-    **_tokenizer_pilot_stats,
+    "english": {
+        "mean": _en_sub["mean"], "median": _en_sub["median"], "p90": _en_sub["p90"],
+        "p95": _en_sub["p95"], "p99": _en_sub["p99"], "max": _en_sub["max"],
+    },
+    "odia": {
+        "mean": _or_sub["mean"], "median": _or_sub["median"], "p90": _or_sub["p90"],
+        "p95": _or_sub["p95"], "p99": _or_sub["p99"], "max": _or_sub["max"],
+    },
+    "retention_at_max_len": _retention_curve["retention_at_max_len"],
     "en_vocab_size": EN_VOCAB_SIZE,
     "or_vocab_size": OR_VOCAB_SIZE,
 }
+# Note: or_vocab_size is the real trained size (undershoots the configured
+# 8000 target -- see the comment above EN_VOCAB_SIZE/OR_VOCAB_SIZE).
 
 TRAINING_HISTORY = _load_json(REPORTS_DIR / "training_history.json")
-
-EDA_RESULTS = _load_json(REPORTS_DIR / "eda_results.json")
 
 EVAL_RESULTS = _load_json(REPORTS_DIR / "eval_results.json")
 _samples = EVAL_RESULTS.get("samples", [])

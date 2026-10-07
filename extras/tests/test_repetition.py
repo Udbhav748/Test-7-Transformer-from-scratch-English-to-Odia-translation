@@ -26,13 +26,18 @@ def test_banned_ngram_tokens_short_sequence_returns_empty():
 
 
 def test_greedy_decode_never_repeats_ngram_on_random_model():
-    from src.inference.greedy_decode import greedy_decode
+    # Blocking lives only in extras now, and only beam_search_decode takes
+    # no_repeat_ngram_size (src.inference.greedy_decode is the spec-pure
+    # loop and intentionally doesn't support it). beam_width=1 picks the
+    # single best continuation at every step -- identical to greedy
+    # decoding -- so this still exercises exactly what the test name says.
+    from extras.inference.beam_search import beam_search_decode
 
     model = build_model()
     model.eval()
     src_ids = torch.tensor([[1, 40, 80, 120, 2]])
 
-    ids = greedy_decode(model, src_ids, max_len=40, no_repeat_ngram_size=3)
+    ids = beam_search_decode(model, src_ids, beam_width=1, max_len=40, no_repeat_ngram_size=3)
 
     seen = set()
     for i in range(len(ids) - 2):

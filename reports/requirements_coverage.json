@@ -79,8 +79,8 @@
     {
      "requirement": "Fits class compute",
      "status": "met",
-     "evidence": "Instantiating the real model against the two 8k tokenizers gives 4,005,696 parameters (all trainable), and the full 36,000-pair training run completed on a Kaggle CPU (the assigned GPU's compute architecture was incompatible with the pre-installed PyTorch build, so the notebook fell back to CPU automatically) at roughly 410-455 s/epoch, about 4.9 hours for the full 40-epoch run at batch size 128 -- no GPU required at all.",
-     "where": "src/model/transformer.py, tests/test_model_shapes.py::test_param_count_sanity_and_report, reports/write_up.md:18, reports/write_up.md:95-103"
+     "evidence": "Instantiating the real model against the real trained tokenizers (English 8,000 tokens, Odia 6,882 -- BPE undershot the configured 8,000 target on this corpus size) gives 3,718,370 parameters, all trainable. The full 36,000-pair, 40-epoch training run completed on a Kaggle Tesla T4 GPU at about 14s/epoch, roughly 9.4 minutes total at batch size 128.",
+     "where": "src/model/transformer.py, tests/test_model_shapes.py::test_param_count_matches_real_tokenizers, reports/write_up.md:18, reports/write_up.md:107-125, configs/base.py:55-59"
     },
     {
      "requirement": "Attention implemented from scratch (not a torch built-in)",
@@ -116,7 +116,7 @@
      "requirement": "Causal-mask bug check (decoder not peeking)",
      "status": "met",
      "evidence": "Beyond simply watching the loss curve, tests/test_masks.py contains four passing tests: a full-model leak-invariance test (logits at positions <= t are identical when target tokens after t are changed), a negative control that reruns the same check through a deliberately all-True mask and asserts it FAILS -- proving the invariance test is not vacuous -- plus position-by-position assertions that future keys and <PAD> keys are always blocked and valid causal keys never are.",
-     "where": "tests/test_masks.py:17-115, reports/write_up.md:81-91"
+     "where": "tests/test_masks.py:17-115, reports/write_up.md:95-105"
     },
     {
      "requirement": "Real training run completed, loss behaves correctly",
@@ -164,13 +164,13 @@
      "requirement": "Exactly 5 sample translations shown",
      "status": "met",
      "evidence": "reports/eval_results.json contains a 'samples' array of exactly 5 entries, each with source, reference and hypothesis, and the same 5 rows are reproduced as a table in the write-up; NUM_SAMPLE_TRANSLATIONS=5 in the config drives select_samples.",
-     "where": "reports/eval_results.json:6-32, reports/write_up.md:132-140, configs/base.py:77"
+     "where": "reports/eval_results.json:8-34, reports/write_up.md:139-152, configs/base.py:79"
     },
     {
      "requirement": "One long sentence among the samples",
      "status": "met",
-     "evidence": "select_samples deterministically reserves the 5th slot for a source sentence at or above the 90th percentile of test-split source word length (LONG_SENTENCE_PERCENTILE=0.90), drawing the other 4 from the remainder; the selected long example is 'BJP media cell head and Rajya Sabha member Anil Baluni dismissed the charge.' (12 English words).",
-     "where": "src/evaluation/sample_translations.py:10-24, reports/eval_results.json:27-31"
+     "evidence": "select_samples deterministically reserves the 5th slot for a source sentence at or above the 90th percentile of test-split source word length (LONG_SENTENCE_PERCENTILE=0.90), drawing the other 4 from the remainder; the selected long example in the current headline run is 'On account of heavy rains in the city, the schools and colleges of Mumbai are shut.' (16 English words).",
+     "where": "src/evaluation/sample_translations.py:10-24, reports/eval_results.json:8-34"
     },
     {
      "requirement": "Discussion of limitations",
@@ -193,13 +193,13 @@
     {
      "requirement": "Odia Unicode normalization",
      "status": "met",
-     "evidence": "clean_text applies Unicode NFC normalization, then strips ZWSP and BOM outright, removes ZWJ/ZWNJ runs at string edges and collapses interior runs of 2+ joiners to a single one -- deliberately preserving a lone ZWJ/ZWNJ because it carries meaning in Indic conjunct formation -- then normalizes whitespace; an added inspect_nfc_anomalies() idempotency audit over 500 Odia samples found 0 anomalies.",
-     "where": "src/data/clean.py:17-37, reports/write_up.md (Tokenization and Odia-specific notes)"
+     "evidence": "clean_text applies Unicode NFC normalization, then strips ZWSP and BOM outright, removes ZWJ/ZWNJ runs at string edges (including when separated from the true boundary by whitespace -- a real scraped-text case, fixed and regression-tested) and collapses interior runs of 2+ joiners to a single one -- deliberately preserving a lone ZWJ/ZWNJ because it carries meaning in Indic conjunct formation -- then normalizes whitespace; inspect_nfc_anomalies() is now wired into scripts/run_eda.py (reports/eda_results.json, or_nfc_anomalies field) rather than being an unreferenced, unreproducible one-off claim -- rerun on the real current corpus, it still reports 0 anomalies over 500 Odia samples. Covered by 9 dedicated unit tests in tests/test_clean.py (previously untested).",
+     "where": "src/data/clean.py:26-56, reports/write_up.md (Tokenization and Odia-specific notes), tests/test_clean.py, scripts/run_eda.py, reports/eda_results.json"
     },
     {
      "requirement": "Subword tokenization discussion for a morphologically rich Indic language",
      "status": "exceeded",
-     "evidence": "The write-up devotes a dedicated section to it with measured, not asserted, numbers: at the same 8k vocabulary the pilot found English averaging 17.5 subword tokens (median 13) against 49.8 for Odia (median 39), which is why MAX_LEN=64 drops ~22-23% of pairs almost always on the Odia side; the section further covers multi-byte script encoding cost, suffixation-heavy morphology consuming BPE merge budget, and conjunct/virama normalization, plus the measured retention curve at MAX_LEN 32/48/64/80/96/128.",
+     "evidence": "The write-up devotes a dedicated section to it with real, full-corpus numbers from reports/eda_results.json (not the small early pilot, which is kept but labelled as non-representative): English averages 13.1 subword tokens (median 12) against 35.4 for Odia (median 34) on the actual 40,000-pair split, which is why MAX_LEN=64 drops about a quarter of pairs, almost always on the Odia side. The section also covers multi-byte script encoding cost, suffixation-heavy morphology consuming BPE merge budget (which is also why Odia's tokenizer undershot its configured 8,000-token vocab, reaching 6,882), and conjunct/virama normalization.",
      "where": "reports/write_up.md (Tokenization and Odia-specific notes), reports/tokenizer_pilot_stats.json, configs/base.py:1-6"
     }
    ]
@@ -210,6 +210,6 @@
   "met": 24,
   "exceeded": 4,
   "not_met": 0,
-  "tests_in_suite": 18
+  "tests_in_suite": 28
  }
 }

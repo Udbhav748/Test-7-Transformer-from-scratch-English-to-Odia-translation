@@ -69,8 +69,31 @@ def test_forward_returns_raw_logits_not_probabilities():
     assert (logits < 0).any()
 
 
-def test_param_count_sanity_and_report():
+def test_param_count_sanity_bound():
+    # Synthetic 8000/8000 vocab, used only as an upper-bound sanity check that
+    # works without the trained tokenizers present (e.g. a fresh clone or CI).
+    # This is NOT the real model's parameter count -- see
+    # test_param_count_matches_real_tokenizers below, or reports/write_up.md,
+    # for that (the real Odia tokenizer undershoots this configured size).
     model = Seq2SeqTransformer(src_vocab_size=8000, tgt_vocab_size=8000)
     total_params = sum(p.numel() for p in model.parameters())
-    print(f"total params: {total_params}")
+    assert total_params < 20_000_000
+
+
+def test_param_count_matches_real_tokenizers():
+    # Reports the model's real size against the tokenizers actually on disk.
+    # Skipped where they aren't present (e.g. a fresh clone before running
+    # the pipeline) rather than silently reporting a synthetic number.
+    from src.tokenization.tokenizer_utils import load_tokenizer
+    from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH
+
+    if not (EN_TOKENIZER_PATH.exists() and OR_TOKENIZER_PATH.exists()):
+        import pytest
+        pytest.skip("trained tokenizers not present")
+
+    en_vocab = load_tokenizer(EN_TOKENIZER_PATH).get_vocab_size()
+    or_vocab = load_tokenizer(OR_TOKENIZER_PATH).get_vocab_size()
+    model = Seq2SeqTransformer(src_vocab_size=en_vocab, tgt_vocab_size=or_vocab)
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"real total params (en_vocab={en_vocab}, or_vocab={or_vocab}): {total_params}")
     assert total_params < 20_000_000

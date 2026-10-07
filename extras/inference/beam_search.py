@@ -46,9 +46,11 @@ def beam_search_decode(
             for logprob, token_id in zip(top_logprobs.tolist(), top_ids.tolist()):
                 candidates.append((seq + [token_id], cum_logprob + logprob))
 
-        if not candidates:
-            break
-
+        # candidates is only empty here if every beam going in was already
+        # EOS-terminated, which the all(...) check below already catches
+        # and breaks on one iteration earlier -- so there's nothing to sort
+        # or select here either way, and all([]) is vacuously True, so this
+        # falls through to the same break with no special-casing needed.
         candidates.sort(key=lambda c: _normalized_score(c[1], len(c[0]), length_penalty), reverse=True)
         beams = candidates[:beam_width]
 

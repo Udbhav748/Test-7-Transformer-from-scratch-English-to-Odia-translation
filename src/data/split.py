@@ -31,8 +31,12 @@ def main() -> None:
 
     candidates = pd.read_parquet(CANDIDATES_PATH)
 
-    # Tokenizer training text must never overlap val/test, so drop the reserved
-    # pool and every candidate sharing any sentence with it before selection.
+    # Tokenizer training text must never overlap val/test. The exclusion
+    # below is applied before the train/val/test split happens at all, so
+    # it also removes the tokenizer pool from train, not just val/test --
+    # that's stricter than required but harmless (train never needed this
+    # text, and the candidate pool has enough margin to absorb it); the
+    # actual correctness requirement is only about val/test.
     tokenizer_pool = select_tokenizer_pool(candidates)
     tokenizer_texts = set(tokenizer_pool["src"]) | set(tokenizer_pool["tgt"])
     shares_tokenizer_text = candidates["src"].isin(tokenizer_texts) | candidates["tgt"].isin(

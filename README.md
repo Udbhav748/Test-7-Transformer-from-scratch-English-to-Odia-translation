@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-from--scratch-ee4c2c)
 ![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-ff4b4b)
-![Tests](https://img.shields.io/badge/tests-18%20in%20suite-blue)
+![Tests](https://img.shields.io/badge/tests-28%20in%20suite-blue)
 
 A sequence-to-sequence Transformer built **from scratch in PyTorch** (no `nn.Transformer`) for
 English → Odia machine translation, trained on the [AI4Bharat Samanantar](https://huggingface.co/datasets/ai4bharat/samanantar)
@@ -12,12 +12,13 @@ models side by side, and inspecting every training/evaluation result.
 
 **Author:** Udbhav Narawat
 
-> **TL;DR:** The headline model matches the assignment's section 5.6 spec exactly (`d=128`, 4 heads,
-> N=2, Post-LN, plain cross-entropy, plain greedy decoding). On the 2,000-pair test set it scores
-> **BLEU 2.84** and **chrF++ 24.41**. The greedy output shows repetition loops on longer sentences,
-> which the write-up discusses. Beyond-spec work (the scaled model, beam search, n-gram blocking, the
-> translate UI and API) lives in [`extras/`](extras/). Every number below is computed from the real 2,000-sentence test set,
-> not estimated.
+> **TL;DR:** Built to the assignment's section 5.6 spec exactly first (`d=128`, 4 heads, N=2,
+> Post-LN, plain cross-entropy, plain greedy decoding) — **BLEU 2.84**, **chrF++ 24.41** on the
+> 2,000-pair test set, no decode-time tricks. The greedy output shows real repetition loops on
+> longer sentences, discussed honestly in the write-up rather than hidden. Only after that exact
+> result was done did further exploration happen: a scaled comparison model, beam search, and
+> n-gram blocking, all kept separate in [`extras/`](extras/) and never mixed into the headline
+> number. Every number below is computed from the real 2,000-sentence test set, not estimated.
 
 ## Contents
 
@@ -60,7 +61,7 @@ Two models were trained and are compared throughout the dashboard and write-up:
 
 | | Baseline | Scaled |
 |---|---|---|
-| Parameters | 4,005,696 | 11,469,824 |
+| Parameters | 3,718,370 | 11,469,824 |
 | Layers (enc + dec) | 2 + 2 | 4 + 4 |
 | Hidden size | 128 | 256 |
 | Attention heads | 4 | 8 |
@@ -134,9 +135,8 @@ supposed to predict (a common and easy-to-miss bug in causal masking).
 
 ## Screenshots
 
-> The translate page screenshot is current. The other dashboard screenshots below come from the
-> earlier Streamlit runs, including the scaled comparison and the label-smoothing/blocking runs. They
-> are not the spec-only headline results (see [Results](#results)).
+> Regenerated from the spec-only headline checkpoint. The scaled-model panels show the separate
+> scaled comparison model (`extras/`), labelled as such in the dashboard.
 
 ### Translate page (local model through the API)
 Type an English sentence and translate it with greedy (spec) or beam search (bonus). The page calls
@@ -159,12 +159,10 @@ Both models translating the same sentence at once, with per-model latency and to
 Which English source tokens the model attended to while generating each Odia subword — the "extra credit" attention visualization.
 ![Translator tab, cross-attention alignment heatmap](docs/screenshots/02c_translator_attention_heatmap.png)
 
-### Translator — why greedy decoding breaks on long sentences
-Same 32-word sentence, same model. **Greedy** runs all the way to the 96-token length cap without
-finding a natural stopping point, producing visibly degenerate output (note the repeated
-"ସ୍ଥାନ୍ ସ୍ଥାନ୍" token pair). **Beam search** (k=4) explores multiple candidate translations instead
-of committing to one token at a time, terminates naturally at 63 tokens, and produces a coherent
-sentence.
+### Translator — greedy vs. beam search on a long sentence
+Same 16-word sentence, same (baseline) model. **Greedy** decodes to 52 subwords. **Beam search**
+(k=4) explores multiple candidate translations instead of committing to one token at a time, and
+stops earlier at 40 subwords with shorter, less repetitive output.
 
 ![Greedy decoding running away to the length cap](docs/screenshots/02d_greedy_repetition_loop.png)
 ![Beam search terminating naturally with a coherent output](docs/screenshots/02e_beam_search_fix.png)
@@ -183,9 +181,9 @@ Why Odia needs more subword tokens than English, and how the text pipeline works
 
 ## Analysis Figures
 
-> These figures were generated from earlier runs and the scaled comparison model. They are kept for
-> reference and do not match the spec-only headline checkpoint (BLEU 2.84, chrF++ 24.41). Regenerating
-> them needs the notebook run on the current checkpoint.
+> Regenerated from `notebooks/model_parameters_and_results.ipynb` against the spec-only headline
+> checkpoint (BLEU 2.84, chrF++ 24.41). The baseline-vs-scaled comparison panels use the separate
+> scaled model in `extras/`.
 
 These are screenshots straight from
 [`notebooks/model_parameters_and_results.ipynb`](notebooks/model_parameters_and_results.ipynb) —
@@ -323,7 +321,7 @@ from a Kaggle run.
 ## Testing
 
 ```bash
-pytest tests/test_masks.py tests/test_model_shapes.py tests/test_tokenizer.py   # 13 tests, no training
+pytest tests/test_masks.py tests/test_model_shapes.py tests/test_tokenizer.py tests/test_clean.py  # 23 tests, no training
 pytest tests/test_training_smoke.py                                             # trains a tiny model
 pytest extras/tests                                                             # repetition-blocking extra
 ```
@@ -334,6 +332,9 @@ The spec tests cover:
 - `tests/test_model_shapes.py`: output shapes across batch and sequence lengths, raw logits, and the
   parameter count.
 - `tests/test_tokenizer.py`: special-token ids and round-trips for English and Odia.
+- `tests/test_clean.py`: NFC normalization (including idempotency), zero-width character handling
+  (edge joiners, interior joiner runs vs. a lone meaningful joiner, ZWSP/BOM), whitespace
+  normalization, and the word-count filter's boundaries.
 - `tests/test_training_smoke.py`: the training loop trains a small model and the checkpoint reloads.
 
 ## Data & Acknowledgments
