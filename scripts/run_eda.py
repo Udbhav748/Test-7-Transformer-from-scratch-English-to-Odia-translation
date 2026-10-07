@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from configs.base import CANDIDATE_POOL_SIZE, DATA_PROCESSED_DIR, REPORTS_DIR, UNK_ID
+from src.data.clean import inspect_nfc_anomalies
 from src.tokenization.tokenizer_utils import encode, load_tokenizer
 from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH
 
@@ -133,6 +134,12 @@ def main():
     en_avg_word_len = full["src"].apply(avg_word_len).tolist()
     or_avg_word_len = full["tgt"].apply(avg_word_len).tolist()
 
+    # Reproduces the write-up's "idempotency check on 500 Odia samples found
+    # 0 anomalies" claim from real, current data rather than leaving it as an
+    # unreferenced one-off run; inspect_nfc_anomalies was previously defined
+    # but never actually called anywhere in the repo.
+    or_nfc_anomalies = inspect_nfc_anomalies(full["tgt"].tolist(), sample_size=500)
+
     en_total_subwords = sum(en_subword_counts)
     or_total_subwords = sum(or_subword_counts)
     en_unk_rate_pct = round(100 * sum(en_unk_counts) / en_total_subwords, 4) if en_total_subwords else 0.0
@@ -179,6 +186,7 @@ def main():
         "en_pct_with_digits": pct_with_digits(full["src"]),
         "or_pct_with_digits": pct_with_digits(full["tgt"]),
         "vocab_stats": vocab_stats,
+        "or_nfc_anomalies": or_nfc_anomalies,
         "length_correlation": {
             "pearson_r_words": pearson_r(en_word_counts, or_word_counts),
             "pearson_r_subwords": pearson_r(en_subword_counts, or_subword_counts),

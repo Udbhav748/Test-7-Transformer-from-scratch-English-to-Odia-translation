@@ -193,8 +193,8 @@
     {
      "requirement": "Odia Unicode normalization",
      "status": "met",
-     "evidence": "clean_text applies Unicode NFC normalization, then strips ZWSP and BOM outright, removes ZWJ/ZWNJ runs at string edges (including when separated from the true boundary by whitespace -- a real scraped-text case, fixed and regression-tested) and collapses interior runs of 2+ joiners to a single one -- deliberately preserving a lone ZWJ/ZWNJ because it carries meaning in Indic conjunct formation -- then normalizes whitespace; an added inspect_nfc_anomalies() idempotency audit over 500 Odia samples found 0 anomalies. Covered by 9 dedicated unit tests in tests/test_clean.py (previously untested).",
-     "where": "src/data/clean.py:26-56, reports/write_up.md (Tokenization and Odia-specific notes), tests/test_clean.py"
+     "evidence": "clean_text applies Unicode NFC normalization, then strips ZWSP and BOM outright, removes ZWJ/ZWNJ runs at string edges (including when separated from the true boundary by whitespace -- a real scraped-text case, fixed and regression-tested) and collapses interior runs of 2+ joiners to a single one -- deliberately preserving a lone ZWJ/ZWNJ because it carries meaning in Indic conjunct formation -- then normalizes whitespace; inspect_nfc_anomalies() is now wired into scripts/run_eda.py (reports/eda_results.json, or_nfc_anomalies field) rather than being an unreferenced, unreproducible one-off claim -- rerun on the real current corpus, it still reports 0 anomalies over 500 Odia samples. Covered by 9 dedicated unit tests in tests/test_clean.py (previously untested).",
+     "where": "src/data/clean.py:26-56, reports/write_up.md (Tokenization and Odia-specific notes), tests/test_clean.py, scripts/run_eda.py, reports/eda_results.json"
     },
     {
      "requirement": "Subword tokenization discussion for a morphologically rich Indic language",
