@@ -138,28 +138,34 @@ supposed to predict (a common and easy-to-miss bug in causal masking).
 > Regenerated from the spec-only headline checkpoint. The scaled-model panels show the separate
 > scaled comparison model (`extras/`), labelled as such in the dashboard.
 
-### Translate page (local model through the API)
+### Translate page (extras — local model through the API)
 Type an English sentence and translate it with greedy (spec) or beam search (bonus). The page calls
-`server/api.py` on port 8000 through the Vite dev server. Run it with `python -m uvicorn server.api:app --port 8000`
-and `npm run dev` inside `ui/`.
+`extras/api/api.py` on port 8000 through the Vite dev server. Run it with
+`python -m uvicorn extras.api.api:app --port 8000` and `npm run dev` inside `extras/ui/`.
 ![Translate page with beam search output](docs/screenshots/06_translate_ui.png)
 
-### Translator — empty state
+### Dashboard (extras — bonus Streamlit app, `extras/app.py`)
+Not part of the graded spec deliverable — a separate exploration UI for inspecting the model and
+comparing it against the scaled extras model. All numbers shown come from the real spec-only
+checkpoint and reports; the scaled-model panels are explicitly labelled as the separate comparison
+model, not the headline.
+
+**Translator tab — empty state**
 ![Translator tab, empty](docs/screenshots/01_translator_empty.png)
 
-### Translator — live translation
+**Translator tab — live translation**
 Typing a sentence runs it through the model live, with token counts and decoding settings shown alongside the output.
 ![Translator tab, translated output](docs/screenshots/02_translator_result.png)
 
-### Translator — baseline vs. scaled, side by side
+**Translator tab — baseline vs. scaled, side by side**
 Both models translating the same sentence at once, with per-model latency and token stats.
 ![Translator tab, side-by-side model comparison](docs/screenshots/02b_translator_side_by_side.png)
 
-### Translator — cross-attention heatmap
+**Translator tab — cross-attention heatmap**
 Which English source tokens the model attended to while generating each Odia subword — the "extra credit" attention visualization.
 ![Translator tab, cross-attention alignment heatmap](docs/screenshots/02c_translator_attention_heatmap.png)
 
-### Translator — greedy vs. beam search on a long sentence
+**Translator tab — greedy vs. beam search on a long sentence**
 Same 16-word sentence, same (baseline) model. **Greedy** decodes to 52 subwords. **Beam search**
 (k=4) explores multiple candidate translations instead of committing to one token at a time, and
 stops earlier at 40 subwords with shorter, less repetitive output.
@@ -167,15 +173,15 @@ stops earlier at 40 subwords with shorter, less repetitive output.
 ![Greedy decoding running away to the length cap](docs/screenshots/02d_greedy_repetition_loop.png)
 ![Beam search terminating naturally with a coherent output](docs/screenshots/02e_beam_search_fix.png)
 
-### Model Comparison
+**Model Comparison tab**
 Baseline vs. scaled model in full: KPI cards, loss curves, the 4-panel comparison figure, architecture table, and example translations.
 ![Model Comparison tab](docs/screenshots/03_model_comparison.png)
 
-### Training & Benchmarks
+**Training & Benchmarks tab**
 Training loss curve, BLEU score, quality-vs-sentence-length analysis, the BLEU distribution, and a confusion matrix testing whether sentence length alone predicts repetition failures.
 ![Training & Benchmarks tab](docs/screenshots/04_training_benchmarks.png)
 
-### Architecture & Linguistics
+**Architecture & Linguistics tab**
 Why Odia needs more subword tokens than English, and how the text pipeline works.
 ![Architecture & Linguistics tab](docs/screenshots/05_architecture_linguistics.png)
 
