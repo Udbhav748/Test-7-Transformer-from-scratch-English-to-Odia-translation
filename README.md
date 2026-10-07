@@ -194,7 +194,8 @@ Which English source tokens the model attended to while generating each Odia sub
 ![Translator tab, cross-attention alignment heatmap](docs/screenshots/02c_translator_attention_heatmap.png)
 
 **Translator tab — greedy vs. beam search on a long sentence**
-Same 16-word sentence, same (baseline) model. **Greedy** decodes to 52 subwords. **Beam search**
+Same 16-word decoding example, same (baseline) model (an extras UI demonstration, not the official
+≥21-word long-sentence evaluation sample). **Greedy** decodes to 52 subwords. **Beam search**
 (k=4) explores multiple candidate translations instead of committing to one token at a time, and
 stops earlier at 40 subwords with shorter, less repetitive output.
 
