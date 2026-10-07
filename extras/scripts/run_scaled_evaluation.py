@@ -6,7 +6,7 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -16,9 +16,9 @@ from tokenizers import Tokenizer
 
 from configs.base import DATA_PROCESSED_DIR, LONG_SENTENCE_PERCENTILE, NUM_SAMPLE_TRANSLATIONS, REPORTS_DIR
 from src.evaluation.bleu import corpus_bleu, corpus_chrf
-from src.inference.beam_search import beam_search_decode
+from extras.inference.beam_search import beam_search_decode
 from src.inference.greedy_decode import greedy_decode
-from src.model.scaled_transformer import EnhancedScaledTransformer
+from extras.model.scaled_transformer import EnhancedScaledTransformer
 from src.tokenization.tokenizer_utils import decode, encode
 
 CHECKPOINT_PATH = REPO_ROOT / "checkpoints" / "scaled_model_best.pt"

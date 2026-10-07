@@ -46,7 +46,7 @@ class TokenEmbedding(nn.Module):
         self.d_model = d_model
 
     def forward(self, ids: Tensor) -> Tensor:
-        return self.embedding(ids) * math.sqrt(self.d_model)
+        return self.embedding(ids)
 
 
 class Embeddings(nn.Module):

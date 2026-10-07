@@ -1,15 +1,9 @@
 import torch
 import torch.nn.functional as F
 
-from configs.base import (
-    BEAM_LENGTH_PENALTY,
-    BEAM_WIDTH,
-    EOS_ID,
-    GREEDY_MAX_DECODE_LEN,
-    NO_REPEAT_NGRAM_SIZE,
-    SOS_ID,
-)
-from src.inference.repetition import banned_ngram_tokens
+from configs.base import EOS_ID, GREEDY_MAX_DECODE_LEN, SOS_ID
+from extras.config import BEAM_LENGTH_PENALTY, BEAM_WIDTH, NO_REPEAT_NGRAM_SIZE
+from extras.inference.repetition import banned_ngram_tokens
 
 
 def _normalized_score(cum_logprob: float, length: int, length_penalty: float) -> float:

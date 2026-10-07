@@ -66,16 +66,9 @@ ADAM_BETAS = (0.9, 0.98)
 ADAM_EPS = 1e-9
 WARMUP_STEPS = 900
 GRAD_CLIP_NORM = 1.0
-LABEL_SMOOTHING = 0.0
 
 # --- Inference ---
 GREEDY_MAX_DECODE_LEN = MAX_LEN
-BEAM_WIDTH = 4
-BEAM_LENGTH_PENALTY = 0.6
-# Blocks a repeat of any n-gram of this size already generated in the same
-# sequence -- a standard inference-time fix for the degenerate repetition
-# loops small greedy-decoded models fall into, with no retraining needed.
-NO_REPEAT_NGRAM_SIZE = 0
 
 # --- Evaluation ---
 NUM_SAMPLE_TRANSLATIONS = 5

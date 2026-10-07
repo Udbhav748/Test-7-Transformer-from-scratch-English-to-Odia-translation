@@ -90,112 +90,90 @@ additionally confirmed that future positions are always blocked, `<PAD>` positio
 blocked regardless of causal position, and valid past/current non-pad positions are never
 incorrectly blocked. All of this is in `tests/test_masks.py` and passes.
 
-### Real training run
+### Real training run (headline)
 
-Ground-truth training happened on Kaggle (this machine is CPU-only — Intel i3-1125G4, 4 cores,
-~8GB RAM, no CUDA/MPS). The first Kaggle run attempt failed immediately: Kaggle assigned a Tesla
-P100 GPU, but its compute architecture (sm_60) is no longer supported by the pre-installed PyTorch
-build on that image, so the very first `forward()` call raised `CUDA error: no kernel image is
-available for execution on the device`. The notebook was made robust to this by probing GPU
-usability with an actual matmul at runtime (not just `torch.cuda.is_available()`, which only checks
-driver presence) and falling back to CPU automatically. Training ran on Kaggle's CPU as a result.
-
-An initial 18-epoch run (train loss 5.0468 -> 1.7868, val loss 3.2268 -> 1.9257) established that
-the setup was correct and the causal mask was healthy, but validation loss had not plateaued —
-it was still improving every single epoch. That run was extended to **40 epochs** with **label
-smoothing (0.1)** added to the loss (a standard regularizer that softens the one-hot training
-target; it changes the achievable loss floor, so the two runs' raw loss values are not directly
-comparable). The architecture was not changed — `d=128, heads=4, N=2` throughout, per the
-assignment's compute constraint. The final run took roughly 410-455 seconds/epoch, about 4.9 hours
-total, over the full 36,000-pair train split at batch size 128.
-
-![training and validation loss and perplexity curves](../docs/figures/notebook_loss_perplexity.png)
+Training ran on Kaggle with a Tesla T4 GPU (Kaggle's CPU was not used for this run). The headline
+run uses the spec-only code: no √d_model embedding scaling, plain cross-entropy with pad ignored, and
+plain greedy decoding. It trained for 40 epochs on 36,000 pairs with batch size 128. Each epoch took
+about 14 seconds.
 
 | epoch | train loss | val loss |
 |---|---|---|
-| 1 | 5.5902 | 4.0746 |
-| 10 | 3.0340 | 3.0447 |
-| 20 | 2.8551 | 2.9212 |
-| 30 | 2.7690 | 2.8715 |
-| 40 | 2.7144 | 2.8464 |
+| 1 | 4.9830 | 3.1863 |
+| 10 | 1.6819 | 1.6899 |
+| 20 | 1.4720 | 1.5901 |
+| 30 | 1.3730 | 1.5646 |
+| 39 | 1.3146 | **1.5455** |
+| 40 | 1.3093 | 1.5489 |
 
-Train and validation loss decrease together, smoothly, with validation consistently at or above
-training and no discontinuous drop — the expected shape for a correctly-masked decoder, and the
-opposite of the "suspiciously perfect" pattern the assignment warns is a leakage symptom. The curve
-flattens over the last ~10 epochs (val loss 2.8715 -> 2.8464), indicating the model is approaching
-what this architecture/data combination can achieve rather than being cut off mid-improvement.
+Train and validation loss fall together with no sudden drop, which is the expected pattern for a
+correctly masked decoder. The evaluated checkpoint is the best-validation one, epoch 39. Full history:
+`reports/training_history.json`.
 
 ## Deviations from the assignment spec
 
-Stated plainly so the numbers can be read against the spec:
+The headline run follows the spec. The following are not in the headline run:
 
-- **(a) Label smoothing: removed.** Label smoothing was used in the earlier runs (0.1). The
-  headline run uses plain cross-entropy (`LABEL_SMOOTHING = 0.0`), as the spec asks.
-- **(b) Repetition blocking: removed from the headline run.** The headline run uses plain greedy
-  decoding (`NO_REPEAT_NGRAM_SIZE = 0`). The earlier 2.60 BLEU used 3-gram blocking and is kept
-  only as history.
-- **(c) Embedding scaling.** Embeddings are scaled by sqrt(d_model). This is standard practice but
-  is not stated in section 5.6.
-- **(d) Scaled comparison model.** The scaled model (d=256, 8 heads, 4+4 blocks, Pre-LN, weight
-  tying) goes beyond the "start small" guidance. It is a comparison model, not the assignment
-  architecture; the section 5.6 architecture is the baseline.
-- **(e) Evaluated checkpoint.** The 40-epoch run is the one evaluated. The 18-epoch run was an
-  earlier run that was extended, not a separately evaluated final model.
-- **Tokenizer data hygiene: fixed.** Tokenizers now train on a 15,000-pair pool that the split
-  excludes from validation and test. The split asserts this. The candidate pool grew to 75,000 so the
-  40,000-pair target still survives the length filter. The headline run used this setup.
+- **Scaled comparison model** (d=256, 8 heads, 4+4 blocks, Pre-LN, weight tying). It goes beyond the
+  "start small" guidance, so it lives in `extras/model/`. It is not the section 5.6 architecture.
+- **Beam search and n-gram repetition blocking.** Both are bonus or optional code in `extras/`. Neither
+  is used in the headline evaluation.
+- **Earlier runs** used label smoothing (0.1) and 3-gram blocking. Their numbers (BLEU 2.19 and 2.60)
+  are not spec results and are no longer in the headline.
+- **Tokenizer data hygiene.** Tokenizers train on a 15,000-pair pool that the split excludes from
+  validation and test. The split asserts this, and the candidate pool is 75,000 so the 40,000-pair
+  target still survives the length filter.
+
 
 ## Evaluation
 
-Headline run: spec-pure greedy decoding (no label smoothing, no n-gram blocking), 40 epochs. The
-evaluated checkpoint is the best-validation one (epoch 39, val loss 1.8082), not the final epoch 40
-(val loss 1.8132). Test split: 2,000 pairs. BLEU and chrF++ are computed with sacrebleu, using identical postprocessing
-(strip special tokens, decode, normalize whitespace) for hypotheses and references.
+Headline run: spec-only greedy decoding on the 2,000-pair test split, using `reports/eval_results.json`.
+BLEU and chrF++ use sacrebleu, with identical postprocessing (strip special tokens, decode, normalize
+whitespace) on hypotheses and references.
 
 | metric | score |
 |---|---|
-| BLEU | **2.22** (`19.6/4.3/1.2/0.4` n-gram precisions, brevity penalty 0.901, hyp/ref length ratio 0.906) |
-| chrF++ | **22.23** |
-| test examples | 2,000 (decoded in 319 s) |
+| BLEU | **2.84** (`22.5 / 5.5 / 1.5 / 0.4` n-gram precisions, brevity penalty 0.950, hyp/ref length ratio 0.951) |
+| chrF++ | **24.41** |
+| test examples | 2,000 (decoded in 294 s) |
 
-Earlier runs, for history only: a 18-epoch run without smoothing or blocking scored BLEU 2.19. A
-40-epoch run with smoothing and 3-gram blocking scored BLEU 2.60. The 2.60 figure is not spec-pure.
-
-### 5 sample translations (headline run)
+### 5 sample translations
 
 | # | Source (English) | Reference (Odia) | Model output (greedy) |
 |---|---|---|---|
-| 1 | Chennai Super Kings made the cut. | ଚେନ୍ନଇ ସୁପର କିଙ୍ଗ୍‌ସ ଟସ୍ ଜିତି ଫିଲ୍‌ଡିଂ କରିଥିଲା। | ସୁପରିମେ ଚେନ୍ନାଇରେନାରେ ତାଙ୍କୁ କ୍ନାଲିଟିସ କରିଛନ୍ତି। |
-| 2 | He died of excessive bleeding on the spot. | ପ୍ରଚୁର ରକ୍ତସ୍ରାବ ଯୋଗୁଁ ଘଟଣାସ୍ଥଳରେ ହିଁ ତାଙ୍କ ମୃତ୍ୟୁ ଘଟିଥିଲା। | ଫଳରେ ଘଟଣାସ୍ଥଳରେ ହିଁ ତାଙ୍କର ମୃତ୍ୟୁ ଘଟିଥିଲା। |
-| 3 | This, though, was not planned. | ତେବେ ଏହା ଆଦୌ ଯୋଜନାବଦ୍ଧ ନଥିଲା। | ଏହାକୁ ନେଇ କୌଣସି ପ୍ରସ୍ତୁତ କରାଯାଇନାହିଁ। |
-| 4 | Those injured have been admitted to a nearby hospital. | ଆହତ ଅବସ୍ଥାରେ ଉଦ୍ଧାର ହୋଇଥିବା ଶ୍ରମିକମାନଙ୍କୁ ନିକଟସ୍ଥ ଡାକ୍ତରଖାନାରେ ଭର୍ତ୍ତି କରାଯାଇଛି। | ଆହତ ହୋଇ ହସ୍ପିଟାଲରେ ଭର୍ତି କରାଯାଇଛି। |
-| 5 | **(long, ≥90th percentile)** On account of heavy rains in the city, the schools and colleges of Mumbai are shut. | ଲଗାଣ ବର୍ଷା ଯୋଗୁଁ ମୁମ୍ବାଇରେ ସ୍କୁଲ୍‌ ଓ କଲେଜ ବନ୍ଦ ରହିଛି ।  | ମୁମ୍ବାଇ ସ୍କୁଲ, କଲେଜ ବନ୍ଦ ରହିଛି । |
+| 1 | Chennai Super Kings made the cut. | ଚେନ୍ନଇ ସୁପର କିଙ୍ଗ୍‌ସ ଟସ୍ ଜିତି ଫିଲ୍‌ଡିଂ କରିଥିଲା। | ସୁପର ଚେନ୍ନାଇ ସୁପରକୁଟିଏ ସୁପର ମ୍ୟାଚ୍‌ରେ ସୁପରିକଳ୍ପ କରିଥିଲେ । |
+| 2 | He died of excessive bleeding on the spot. | ପ୍ରଚୁର ରକ୍ତସ୍ରାବ ଯୋଗୁଁ ଘଟଣାସ୍ଥଳରେ ହିଁ ତାଙ୍କ ମୃତ୍ୟୁ ଘଟିଥିଲା। | ଘଟଣାସ୍ଥଳରେ ସେଠାରେ ସେଠାରେ ସେଠାରେ ପହଞ୍ଚିଥିଲା। |
+| 3 | This, though, was not planned. | ତେବେ ଏହା ଆଦୌ ଯୋଜନାବଦ୍ଧ ନଥିଲା। | ତେବେ ଏହା କୌଣସି କାର୍ଯ୍ୟକାରୀ ହୋଇନଥିଲା। |
+| 4 | Those injured have been admitted to a nearby hospital. | ଆହତ ଅବସ୍ଥାରେ ଉଦ୍ଧାର ହୋଇଥିବା ଶ୍ରମିକମାନଙ୍କୁ ନିକଟସ୍ଥ ଡାକ୍ତରଖାନାରେ ଭର୍ତ୍ତି କରାଯାଇଛି। | ସେମାନଙ୍କୁ ନିକଟସ୍ଥ ହସ୍ପିଟାଲରେ ଭର୍ତ୍ତି କରାଯାଇଛି। |
+| 5 | **(long, ≥90th percentile)** On account of heavy rains in the city, the schools and colleges of Mumbai are shut. | ଲଗାଣ ବର୍ଷା ଯୋଗୁଁ ମୁମ୍ବାଇରେ ସ୍କୁଲ୍‌ ଓ କଲେଜ ବନ୍ଦ ରହିଛି ।  | ମୁମ୍ବାଇରେ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହେବାରୁ ପ୍ରବଳ ବର୍ଷା ହୋଇଛି ।  |
 
-Samples 2, 4 and 5 are close to the reference. Sample 5, the long sentence, comes out much shorter and
-drops the cause (heavy rain), which is the length limitation discussed below.
+Samples 3 and 4 are close in meaning to the reference. Samples 2 and 5 repeat a word or phrase, which
+is the greedy loop failure the length analysis measures.
 
-Note: the length-vs-quality analysis and the training/attention figures below were generated on the
-earlier run and have not been regenerated for the headline run.
+### Length vs quality (all 2,000 test pairs)
 
-### Discussion: the long-sentence example and limitations
+From `reports/length_quality_analysis.json`:
 
-The headline run uses plain greedy decoding, so its long-sentence output can repeat. The long sample
-above drops the cause of the event and comes out much shorter than the reference. The earlier 18-epoch
-checkpoint, which had no smoothing and no blocking, looped outright on the same kind of input
-(`ବିଜେପି ଓ ବିଜେପି ଓ ବିର ମିଧାନସଭାରେ ବିଜେପି ଓ...`). The 3-gram blocking added later stopped that exact loop
-but is not part of the headline result.
+| source word count | pairs | mean sentence BLEU |
+|---|---|---|
+| 3–5 | 483 | 10.27 |
+| 6–8 | 691 | 7.69 |
+| 9–11 | 483 | 7.12 |
+| 12–15 | 249 | 5.68 |
+| 16–20 | 79 | 4.68 |
+| 21+ | 15 | 3.40 |
 
-A full-test-set measurement on the headline checkpoint (`reports/length_quality_analysis.json`, all 2,000
-examples) shows the same decline with sentence length. Mean per-sentence BLEU falls from 8.78 (3-5 words)
-to 7.76 (6-8) to 5.79 (9-11) to 4.82 (12-15) to 3.58 (16-20) to 2.52 (21+). Pearson correlation with source
-word length is -0.20, and with subword length -0.25. The repetition-signature rate (any bigram recurring 3+
-times in one output) rises from 28.2% on the shortest sentences to 73.3% on the longest, and the overall rate
-is 43.9%.
+Overall mean sentence BLEU is 7.77. The repetition rate across all outputs is 37.4%, and the
+correlation with source word length is −0.20. Quality falls as sentences get longer.
 
-Beam search (`reports/beam_eval_results.json`, width 4, same test set) scores BLEU 2.65 and chrF++ 23.34,
-against 2.22 and 22.23 for greedy. It is the bonus decoder and is exposed on the translate page. Its brevity penalty is 0.733, so it produces shorter output than greedy, which is the main reason
-for the gain.
+### Discussion: limitations
 
-The two causes remain: (1) limited capacity (`d=128`, 2 decoder layers), kept deliberately under the
-"must fit class compute" constraint, and (2) a 36,000-pair training set, far smaller than production NMT
-systems use. Neither decoder fixes the underlying capacity limit, and the length trend shows it.
+The main limitation is greedy decoding on longer inputs. The model's greedy output repeats words or
+phrases (samples 2 and 5), and the length study shows this rising with sentence length. Beam search (`reports/beam_eval_results.json`, width 4, same checkpoint) scores BLEU 3.55 and
+chrF++ 25.65, against 2.84 and 24.41 for greedy. Its brevity penalty (0.804) shows it produces
+shorter output, which is most of the gain. It still repeats on some inputs (sample 2 above). Both
+beam search and n-gram blocking are in `extras/` and are not part of the headline result.
+
+The capacity limit remains: a 4M-parameter model (`d=128`, 2 decoder layers) trained on 36,000 pairs.
+That size is deliberate under the "must fit class compute" constraint. It also explains the low
+absolute BLEU, which is expected for a model this small trained from scratch.

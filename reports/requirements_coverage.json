@@ -32,7 +32,7 @@
      "requirement": "Attention masks",
      "status": "met",
      "evidence": "Three mask builders exist and are wired into every forward pass: make_padding_mask for encoder self-attention, make_decoder_self_attn_mask (causal AND pad, shape [B,1,T,T]) for decoder self-attention, and make_cross_attn_mask ([B,1,1,S]) for cross-attention; masks are boolean True='attend' and are applied via masked_fill(~mask, -1e9) before softmax.",
-     "where": "src/model/masks.py, src/model/transformer.py:48-50, src/model/attention.py:43-46"
+     "where": "src/model/masks.py:13-28, src/model/transformer.py:48-50, src/model/attention.py:44"
     },
     {
      "requirement": "No sentence leakage between train / val / test",
@@ -49,8 +49,8 @@
     {
      "requirement": "Embedding + positional encoding",
      "status": "met",
-     "evidence": "Embeddings composes TokenEmbedding (nn.Embedding scaled by sqrt(d_model)=sqrt(128)) with a fixed sinusoidal PositionalEncoding built from the sin/cos 10000^(2i/d) formula and registered as a non-persistent buffer of length MAX_LEN+16 = 80; both encoder and decoder use it.",
-     "where": "src/model/embeddings.py, src/model/encoder.py:47, src/model/decoder.py:60"
+     "evidence": "TokenEmbedding returns nn.Embedding output directly, with no sqrt(d_model) scaling, matching section 5.6. A fixed sinusoidal PositionalEncoding (sin/cos, 10000^(2i/d)) is added, stored as a non-persistent buffer. Encoder and decoder both use it.",
+     "where": "src/model/embeddings.py:49, src/model/encoder.py:47, src/model/decoder.py:60"
     },
     {
      "requirement": "N encoder blocks: self-attn -> FFN, residual + LayerNorm",
@@ -67,8 +67,8 @@
     {
      "requirement": "Linear + softmax output",
      "status": "met",
-     "evidence": "Seq2SeqTransformer ends in a separate nn.Linear(128, tgt_vocab_size=8000) output projection returning raw logits (untied from the target embedding by default, TIE_OUTPUT_PROJECTION=False); softmax is applied by nn.CrossEntropyLoss at training time and by F.log_softmax at beam-search decode time, and tests/test_model_shapes.py::test_forward_returns_raw_logits_not_probabilities pins this contract.",
-     "where": "src/model/transformer.py:42-54, src/training/train.py:81, src/inference/beam_search.py:44"
+     "evidence": "Seq2SeqTransformer ends in a separate nn.Linear(128, tgt_vocab) output projection that returns raw logits, untied from the target embedding. Softmax is applied by nn.CrossEntropyLoss in training and by greedy argmax at decode time.",
+     "where": "src/model/transformer.py:42,54, src/training/train.py:75"
     },
     {
      "requirement": "Exact required hyperparameters d=128, heads=4, N=2",
@@ -98,19 +98,19 @@
      "requirement": "Teacher forcing",
      "status": "met",
      "evidence": "run_epoch feeds the gold target shifted right as decoder input and scores against the gold target shifted left: decoder_input = tgt_ids[:, :-1], decoder_target = tgt_ids[:, 1:].",
-     "where": "src/training/train.py:29-34"
+     "where": "src/training/train.py:29-30"
     },
     {
      "requirement": "Cross-entropy ignoring pad tokens",
      "status": "met",
-     "evidence": "The loss is nn.CrossEntropyLoss(ignore_index=PAD_ID, label_smoothing=LABEL_SMOOTHING (0.0 in the headline run, plain cross-entropy)) with PAD_ID=0, and reported epoch loss is renormalized by the non-pad token count ((decoder_target != PAD_ID).sum()) so padding influences neither the gradient nor the logged number.",
-     "where": "src/training/train.py:81, src/training/train.py:43-47"
+     "evidence": "Loss is nn.CrossEntropyLoss(ignore_index=PAD_ID) with plain cross-entropy (no label smoothing). Reported loss is renormalized by the non-pad token count.",
+     "where": "src/training/train.py:75, src/training/train.py:43-47"
     },
     {
      "requirement": "Adam with warmup",
      "status": "met",
      "evidence": "torch.optim.Adam(lr=1.0, betas=(0.9, 0.98), eps=1e-9) is driven by a Noam LambdaLR schedule, lr = d_model^-0.5 * min(step^-0.5, step * warmup^-1.5) with WARMUP_STEPS=900, stepped once per batch; gradients are clipped to norm 1.0.",
-     "where": "src/training/lr_schedule.py, src/training/train.py:73-74, configs/base.py:61-64"
+     "where": "src/training/lr_schedule.py, src/training/train.py:72-73, configs/base.py:67"
     },
     {
      "requirement": "Causal-mask bug check (decoder not peeking)",
@@ -121,8 +121,8 @@
     {
      "requirement": "Real training run completed, loss behaves correctly",
      "status": "met",
-     "evidence": "reports/training_history.json is the 40-epoch headline run on the full 36,000-pair train split, trained with plain cross-entropy (label smoothing 0.0 in the headline run). Train and validation loss decrease together with no discontinuous drop -- the opposite of the 'suspiciously perfect' leakage symptom the spec warns about. An earlier 18-epoch run used label smoothing and was extended to 40 epochs once validation loss had not plateaued; it is not the headline run.",
-     "where": "reports/training_history.json, reports/write_up.md:107-117"
+     "evidence": "reports/training_history.json holds all 40 epochs of the headline run (spec-only code, plain cross-entropy). Train loss 4.98 -> 1.31; val loss 3.19 -> 1.55, best at epoch 39 (1.5455), which is the evaluated checkpoint. Train and val fall together with no sudden drop. Run on Kaggle GPU, about 14 s per epoch.",
+     "where": "reports/training_history.json, reports/write_up.md (Real training run)"
     }
    ]
   },
@@ -133,20 +133,20 @@
     {
      "requirement": "Greedy decode loop feeding outputs back until <EOS>",
      "status": "met",
-     "evidence": "greedy_decode starts from a [[<SOS>]] tensor, repeatedly runs the full model, takes argmax over the last position, concatenates it onto the running target and breaks as soon as the emitted id equals EOS_ID=2, capped at GREEDY_MAX_DECODE_LEN=64; it is the decoder used for the reported BLEU over all 2,000 test pairs.",
-     "where": "src/inference/greedy_decode.py, scripts/run_evaluation.py:37"
+     "evidence": "greedy_decode starts from <SOS>, runs the model, takes argmax of the last position, appends it and stops at <EOS>, capped at GREEDY_MAX_DECODE_LEN. No n-gram blocking: the loop is the spec's plain greedy loop.",
+     "where": "src/inference/greedy_decode.py:7-19, scripts/run_evaluation.py"
     },
     {
      "requirement": "Beam search (spec's explicit bonus-marks item)",
      "status": "exceeded",
-     "evidence": "Beam search (width 4, length penalty 0.6) on the 2,000-pair test set scores BLEU 2.65 and chrF++ 23.34 (reports/beam_eval_results.json), against 2.22 and 22.23 for spec-pure greedy. Implemented in src/inference/beam_search.py and exposed in the translate page.",
-     "where": "src/inference/beam_search.py, configs/base.py:68-70, app.py:1466-1469"
+     "evidence": "Beam search (width 4, length penalty 0.6) is an extra in extras/inference/beam_search.py. On the spec-only headline checkpoint it scores BLEU 3.55 and chrF++ 25.65 over the 2,000-pair test set (reports/beam_eval_results.json), against 2.84 and 24.41 for greedy. Not used in the headline result.",
+     "where": "extras/inference/beam_search.py, extras/config.py, reports/beam_eval_results.json"
     },
     {
-     "requirement": "Decode-time repetition control (beyond spec)",
-     "status": "met",
-     "evidence": "Not asked for by the spec, implemented as an optional, off-by-default extra: both decoders can bar any token that would complete an already-seen n-gram (NO_REPEAT_NGRAM_SIZE, default 0). It is off in the headline run and enabled only by config. Four tests in tests/test_repetition.py pin the banned-token logic.",
-     "where": "src/inference/repetition.py, src/inference/greedy_decode.py, src/inference/beam_search.py, configs/base.py:78, tests/test_repetition.py"
+     "requirement": "Decode-time repetition control (extras, off by default)",
+     "status": "exceeded",
+     "evidence": "Optional n-gram blocking lives in extras/inference/repetition.py and is off in the headline run (NO_REPEAT_NGRAM_SIZE = 0 in extras/config.py). It is not on the spec path.",
+     "where": "extras/inference/repetition.py, extras/config.py"
     }
    ]
   },
@@ -157,7 +157,7 @@
     {
      "requirement": "BLEU score",
      "status": "met",
-     "evidence": "sacrebleu corpus BLEU over the full 2,000-pair test split is 2.22 for the headline spec-pure run (greedy decoding, plain cross-entropy with label smoothing 0.0), with chrF++ 22.23 on the same split (reports/eval_results.json: BLEU = 2.22 19.6/4.3/1.2/0.4, BP = 0.901, hyp_len 13,965 vs ref_len 15,419). Identical postprocessing -- decode, strip special tokens, normalize whitespace -- is applied to hypotheses and references alike; decoding all 2,000 examples took 319.4 s. An earlier run that used label smoothing and n-gram blocking scored 2.19 and is not the headline result.",
+     "evidence": "Headline spec-only greedy: sacrebleu corpus BLEU 2.84 (22.5/5.5/1.5/0.4 precisions, BP 0.950) over all 2,000 test pairs, with identical postprocessing on hypotheses and references.",
      "where": "reports/eval_results.json, src/evaluation/bleu.py, scripts/run_evaluation.py"
     },
     {
@@ -175,8 +175,8 @@
     {
      "requirement": "Discussion of limitations",
      "status": "exceeded",
-     "evidence": "reports/write_up.md discusses the length limitation with measured numbers on all 2,000 test examples (reports/length_quality_analysis.json): mean sentence BLEU falls from 8.78 (3-5 words) to 2.52 (21+ words), Pearson r -0.20 vs source word length, and the repetition-signature rate rises from 28.2% to 73.3%. Beam search is compared against greedy.",
-     "where": "reports/write_up.md:142-163, reports/length_quality_analysis.json, scripts/run_length_quality_analysis.py"
+     "evidence": "reports/write_up.md (Discussion: limitations) uses measured numbers on all 2,000 test pairs (reports/length_quality_analysis.json): mean sentence BLEU falls from 10.27 (3-5 words) to 3.40 (21+ words), Pearson r -0.20 vs source word length, and 37.4% of outputs repeat a bigram. It explains the greedy loop.",
+     "where": "reports/write_up.md (Discussion: limitations), reports/length_quality_analysis.json"
     }
    ]
   },
@@ -194,21 +194,21 @@
      "requirement": "Odia Unicode normalization",
      "status": "met",
      "evidence": "clean_text applies Unicode NFC normalization, then strips ZWSP and BOM outright, removes ZWJ/ZWNJ runs at string edges and collapses interior runs of 2+ joiners to a single one -- deliberately preserving a lone ZWJ/ZWNJ because it carries meaning in Indic conjunct formation -- then normalizes whitespace; an added inspect_nfc_anomalies() idempotency audit over 500 Odia samples found 0 anomalies.",
-     "where": "src/data/clean.py:17-55, reports/write_up.md:63-68"
+     "where": "src/data/clean.py:17-37, reports/write_up.md (Tokenization and Odia-specific notes)"
     },
     {
      "requirement": "Subword tokenization discussion for a morphologically rich Indic language",
      "status": "exceeded",
      "evidence": "The write-up devotes a dedicated section to it with measured, not asserted, numbers: at the same 8k vocabulary the pilot found English averaging 17.5 subword tokens (median 13) against 49.8 for Odia (median 39), which is why MAX_LEN=64 drops ~22-23% of pairs almost always on the Odia side; the section further covers multi-byte script encoding cost, suffixation-heavy morphology consuming BPE merge budget, and conjunct/virama normalization, plus the measured retention curve at MAX_LEN 32/48/64/80/96/128.",
-     "where": "reports/write_up.md:37-73, reports/tokenizer_pilot_stats.json, configs/base.py:1-7"
+     "where": "reports/write_up.md (Tokenization and Odia-specific notes), reports/tokenizer_pilot_stats.json, configs/base.py:1-6"
     }
    ]
   }
  ],
  "summary": {
   "total_items": 28,
-  "met": 25,
-  "exceeded": 3,
+  "met": 24,
+  "exceeded": 4,
   "not_met": 0,
   "tests_in_suite": 18
  }

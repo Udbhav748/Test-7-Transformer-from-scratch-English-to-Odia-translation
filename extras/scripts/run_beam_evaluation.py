@@ -6,17 +6,18 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import torch
 
-from configs.base import BEAM_WIDTH, CHECKPOINT_DIR, DATA_PROCESSED_DIR, REPORTS_DIR
+from configs.base import CHECKPOINT_DIR, DATA_PROCESSED_DIR, REPORTS_DIR
+from extras.config import BEAM_WIDTH
 from src.evaluation.bleu import corpus_bleu, corpus_chrf
-from src.evaluation.sample_translations import select_samples, translate_samples
-from src.inference.beam_search import beam_search_decode
-from src.tokenization.tokenizer_utils import encode, load_tokenizer
+from src.evaluation.sample_translations import select_samples
+from extras.inference.beam_search import beam_search_decode
+from src.tokenization.tokenizer_utils import decode, encode, load_tokenizer
 from src.tokenization.train_tokenizer import EN_TOKENIZER_PATH, OR_TOKENIZER_PATH
 from src.training.checkpoint import load_checkpoint
 from src.training.train import build_model
@@ -49,9 +50,18 @@ def main():
     print(f"BLEU: {bleu.score:.2f}  ({bleu})")
     print(f"chrF++: {chrf.score:.2f}  ({chrf})")
 
-    # Samples use the same greedy translator as run_evaluation.py so the two reports stay comparable.
+    # Samples are decoded with beam search too, not the greedy translator -- a beam-eval report
+    # with greedy samples would misrepresent what beam search actually produces.
     rows = select_samples(test_path=DATA_PROCESSED_DIR / "test.parquet", n=5)
-    samples = translate_samples(model, rows)
+    samples = []
+    for row in rows:
+        row_src_ids = torch.tensor([encode(en_tok, row.src)])
+        hyp = beam_search_decode(model, row_src_ids, beam_width=BEAM_WIDTH)
+        samples.append({
+            "source": row.src,
+            "reference": row.tgt,
+            "hypothesis": decode(or_tok, hyp),
+        })
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     out = {
