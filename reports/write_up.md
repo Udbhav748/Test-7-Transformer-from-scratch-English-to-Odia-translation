@@ -63,8 +63,9 @@ go beyond a generic "morphologically rich language" caveat:
   shows the asymmetry directly: English sentences average **13.1 subword tokens** (median 12)
   versus **35.4 for Odia** (median 34) on the same 40,000-pair split. (A much smaller, early pilot
   tokenizer — `reports/tokenizer_pilot_stats.json`, not the production tokenizer — measured 17.5
-  and 49.8 on a ~500-sentence sample; that number is kept for history but should not be read as the
-  real corpus statistic.) This asymmetry is exactly why `MAX_LEN=64` — a limit generous by English
+  and 49.8 on an 8,000-pair sample with its own separate tokenizer; that number is kept for
+  history but should not be read as the real corpus statistic.) This asymmetry is exactly why
+  `MAX_LEN=64` — a limit generous by English
   standards — still drops roughly a quarter of pairs: it is almost always the Odia side, not the
   English side, that exceeds the limit.
 - **Morphology.** Odia is suffixation-heavy (case marking, postpositions, verb agreement all attach

@@ -92,9 +92,28 @@ def _load_json(path: Path):
         return json.load(f)
 
 
-_tokenizer_pilot_stats = _load_json(REPORTS_DIR / "tokenizer_pilot_stats.json")
+EDA_RESULTS = _load_json(REPORTS_DIR / "eda_results.json")
+
+# Built from the real, full-corpus measurement (reports/eda_results.json,
+# computed on the actual train/val/test split) and a real retention-vs-MAX_LEN
+# curve measured with the production tokenizers (reports/tokenizer_retention_curve.json).
+# reports/tokenizer_pilot_stats.json is an older, much smaller, separately
+# tokenized pilot sample -- it is kept on disk for history but intentionally
+# not used here, since mixing it into these live figures previously made a
+# non-representative sample look like the real corpus statistic.
+_retention_curve = _load_json(REPORTS_DIR / "tokenizer_retention_curve.json")
+_en_sub = EDA_RESULTS["descriptive_stats"]["en_subwords"]
+_or_sub = EDA_RESULTS["descriptive_stats"]["or_subwords"]
 TOKENIZER_STATS = {
-    **_tokenizer_pilot_stats,
+    "english": {
+        "mean": _en_sub["mean"], "median": _en_sub["median"], "p90": _en_sub["p90"],
+        "p95": _en_sub["p95"], "p99": _en_sub["p99"], "max": _en_sub["max"],
+    },
+    "odia": {
+        "mean": _or_sub["mean"], "median": _or_sub["median"], "p90": _or_sub["p90"],
+        "p95": _or_sub["p95"], "p99": _or_sub["p99"], "max": _or_sub["max"],
+    },
+    "retention_at_max_len": _retention_curve["retention_at_max_len"],
     "en_vocab_size": EN_VOCAB_SIZE,
     "or_vocab_size": OR_VOCAB_SIZE,
 }
@@ -102,8 +121,6 @@ TOKENIZER_STATS = {
 # 8000 target -- see the comment above EN_VOCAB_SIZE/OR_VOCAB_SIZE).
 
 TRAINING_HISTORY = _load_json(REPORTS_DIR / "training_history.json")
-
-EDA_RESULTS = _load_json(REPORTS_DIR / "eda_results.json")
 
 EVAL_RESULTS = _load_json(REPORTS_DIR / "eval_results.json")
 _samples = EVAL_RESULTS.get("samples", [])

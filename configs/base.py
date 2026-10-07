@@ -1,14 +1,15 @@
 """Frozen hyperparameters and paths for the Test-7 En->Odia transformer.
 
 Numbers below are measured, not assumed. A small early pilot tokenizer
-(reports/tokenizer_pilot_stats.json, ~500 sentences) measured English
-mean/median 17.5/13 subwords and Odia mean/median 49.8/39 subwords; that
-pilot is not the production tokenizer and should not be read as the real
-corpus statistics. The real, full-corpus measurement, from the trained
-production tokenizers (reports/eda_results.json), is English mean/median
-13.1/12.0 subwords, Odia mean/median 35.4/34.0 subwords, with 76.4%
-pair-retention at MAX_LEN=64. Re-run scripts/run_eda.py and check that
-file before changing TOTAL_SIZE, CANDIDATE_POOL_SIZE, or MAX_LEN.
+(reports/tokenizer_pilot_stats.json, 8,000 sentence pairs, its own separate
+8,000-token tokenizer) measured English mean/median 17.5/13 subwords and
+Odia mean/median 49.8/39 subwords; that pilot is not the production
+tokenizer and should not be read as the real corpus statistics. The real,
+full-corpus measurement, from the trained production tokenizers
+(reports/eda_results.json), is English mean/median 13.1/12.0 subwords,
+Odia mean/median 35.4/34.0 subwords, with 76.4% pair-retention at
+MAX_LEN=64. Re-run scripts/run_eda.py and check that file before changing
+TOTAL_SIZE, CANDIDATE_POOL_SIZE, or MAX_LEN.
 """
 
 from pathlib import Path
