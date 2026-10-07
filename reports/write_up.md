@@ -87,9 +87,13 @@ go beyond a generic "morphologically rich language" caveat:
   production training and evaluation text uses normalized Unicode throughout -- this is what keeps
   "the same" Odia character from being learned and encoded as two different token sequences.
   (`encode()` itself does not perform NFC normalization; it operates on text that was already
-  normalized upstream during cleaning.) An idempotency check on 500 Odia samples found 0 anomalies,
-  i.e. NFC was already effectively normalizing this corpus's Odia text correctly, but this is
-  corpus-dependent and should not be assumed without checking.
+  normalized upstream during cleaning.) Measured on 500 Odia samples (`reports/eda_results.json`,
+  `or_nfc_anomalies`): 0 of 500 (0.0%) were changed by NFC normalization, meaning this corpus's Odia
+  text arrived already in NFC form -- NFC normalization here is not fixing much, it is confirming
+  the source was already clean. (This is corpus-dependent and should not be assumed for a different
+  source without checking; note this measures how much the sample changed under NFC, not whether NFC
+  itself is idempotent -- NFC is idempotent by definition, so a check of that would prove nothing
+  about the corpus and is not reported.)
 
 The practical consequence for translation quality: the decoder has to get many more subword
 decisions right per sentence on the Odia side than an English-only intuition would suggest, and

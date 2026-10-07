@@ -50,15 +50,18 @@ def passes_word_count(text: str, min_words: int = MIN_WORDS, max_words: int = MA
 
 
 def inspect_nfc_anomalies(texts: list[str], sample_size: int = 500) -> dict:
+    # changed_by_nfc / changed_fraction: how much of the sample was NOT
+    # already in NFC form before normalization touched it -- this is the
+    # meaningful corpus-quality signal (low values mean the source corpus
+    # was already close to NFC-clean). Deliberately does NOT report an
+    # "idempotency" check (NFC(x) vs NFC(NFC(x))): NFC is idempotent by
+    # mathematical definition, so that check is always 0 regardless of
+    # input and proves nothing about the corpus -- it was removed rather
+    # than kept as a vacuous, trust-me diagnostic.
     sample = texts[:sample_size]
     changed = [t for t in sample if unicodedata.normalize("NFC", t) != t]
-    non_idempotent = [
-        t for t in sample
-        if unicodedata.normalize("NFC", t) != unicodedata.normalize("NFC", unicodedata.normalize("NFC", t))
-    ]
     return {
         "sample_size": len(sample),
         "changed_by_nfc": len(changed),
         "changed_fraction": len(changed) / len(sample) if sample else 0.0,
-        "non_idempotent_count": len(non_idempotent),
     }

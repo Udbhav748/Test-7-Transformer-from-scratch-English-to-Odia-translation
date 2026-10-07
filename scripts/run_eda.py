@@ -24,6 +24,32 @@ EN_ENDING_CHARS = {".", "?", "!", ","}
 OR_ENDING_CHARS = {"।", "?", "!"}
 
 
+def cleaning_funnel(final_sampled: int) -> dict:
+    # Reads the real pool/survivor/retention counts from the metadata that
+    # src/data/split.py writes for its own actual run, instead of hard-coding
+    # a number from a previous run that would silently go stale after any
+    # pipeline change. candidate_pool_after_cleaning falls back to the
+    # configured target if split.py hasn't been run yet (no metadata file),
+    # clearly marked as a target, not a measured count.
+    meta_path = REPORTS_DIR / "split_metadata.json"
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        return {
+            "candidate_pool_after_cleaning": meta["candidate_pool_after_cleaning"],
+            "survived_max_len_filter": meta["survived_max_len_filter"],
+            "final_sampled": final_sampled,
+            "source": "reports/split_metadata.json (real split.py run)",
+        }
+    return {
+        "candidate_pool_after_cleaning": CANDIDATE_POOL_SIZE,
+        "survived_max_len_filter": None,
+        "final_sampled": final_sampled,
+        "source": "reports/split_metadata.json not found; candidate_pool_after_cleaning is the "
+                   "configured target (CANDIDATE_POOL_SIZE), not a measured count; "
+                   "survived_max_len_filter unavailable -- run src/data/split.py first",
+    }
+
+
 def word_count(text: str) -> int:
     return len(text.split())
 
@@ -191,11 +217,7 @@ def main():
             "pearson_r_words": pearson_r(en_word_counts, or_word_counts),
             "pearson_r_subwords": pearson_r(en_subword_counts, or_subword_counts),
         },
-        "cleaning_funnel": {
-            "candidate_pool_after_cleaning": CANDIDATE_POOL_SIZE,
-            "survived_max_len_filter": 45_858,  # from the spec-only Kaggle run's split.py log
-            "final_sampled": len(full),
-        },
+        "cleaning_funnel": cleaning_funnel(len(full)),
         "descriptive_stats": {
             "en_words": describe(en_word_counts),
             "or_words": describe(or_word_counts),

@@ -32,6 +32,16 @@ MODULES = [
     "src/training/checkpoint.py",
     "src/training/train.py",
     "src/inference/greedy_decode.py",
+    "src/evaluation/bleu.py",
+    "src/evaluation/sample_translations.py",
+]
+
+# scripts/run_evaluation.py is embedded and run verbatim (not reimplemented
+# inline) so the notebook's evaluation is provably the exact same code path
+# as `python scripts/run_evaluation.py` on the CLI -- one evaluation
+# implementation, not two that could silently drift apart.
+SCRIPTS = [
+    "scripts/run_evaluation.py",
 ]
 
 
@@ -64,7 +74,7 @@ def code(source):
 
 def read_module_texts():
     texts = {}
-    for rel_path in MODULES:
+    for rel_path in MODULES + SCRIPTS:
         full_path = REPO_ROOT / rel_path
         texts[rel_path] = full_path.read_text(encoding="utf-8") if full_path.exists() else ""
     return texts
@@ -101,7 +111,9 @@ def main():
 Encoder-decoder transformer implemented per assignment section 5.6
 (d_model=128, heads=4, N=2 encoder/decoder blocks). This notebook reconstructs
 the exact source files developed and unit-tested locally, then runs the real
-training pass on GPU."""),
+training pass on GPU, then evaluates the best checkpoint with plain greedy
+decoding (the graded headline path -- not beam search, which is bonus
+exploration kept in `extras/`)."""),
         code("""
 !pip install -q datasets tokenizers sacrebleu
 """),
@@ -179,9 +191,22 @@ model, history = train(
     device=device,
 )
 """),
+        md("""## Evaluation -- Test-7 graded path
+Runs `scripts/run_evaluation.py` exactly as embedded above (the identical
+file that `python scripts/run_evaluation.py` runs on the CLI, not a
+reimplementation): loads the best-validation checkpoint and the English/Odia
+tokenizers, runs plain greedy decoding (`src/inference/greedy_decode.py` --
+not beam search) over the full 2,000-pair test split, computes corpus BLEU
+and chrF++, and selects exactly 5 sample translations, one of them
+deterministically the >=90th-percentile-length source sentence."""),
+        code("""
+!cd /kaggle/working && python scripts/run_evaluation.py
+"""),
         md("""## Done
-Checkpoints are written under `/kaggle/working/checkpoints/` and will appear
-in this kernel's Output tab for download once the run finishes."""),
+Checkpoints are written under `/kaggle/working/checkpoints/` and the
+evaluation results (BLEU, chrF++, and the 5 samples) under
+`/kaggle/working/reports/eval_results.json`; both appear in this kernel's
+Output tab for download once the run finishes."""),
     ]
 
     NB_PATH.parent.mkdir(parents=True, exist_ok=True)

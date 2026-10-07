@@ -1,3 +1,4 @@
+import json
 import random
 
 import pandas as pd
@@ -6,6 +7,7 @@ from configs.base import (
     DATA_PROCESSED_DIR,
     MAX_LEN,
     RANDOM_SEED,
+    REPORTS_DIR,
     TEST_SIZE,
     TOTAL_SIZE,
     TRAIN_SIZE,
@@ -91,9 +93,46 @@ def main() -> None:
     held_out_texts = val_src | test_src | set(val_df["tgt"]) | set(test_df["tgt"])
     assert not (held_out_texts & tokenizer_texts)
 
+    # Diagnostic only, not enforced: the split's actual leakage protection is
+    # the source-sentence disjointness asserted above (train/val/test src
+    # are pairwise disjoint by construction, since dedup and sampling are
+    # keyed on src). This additionally reports target-side duplication
+    # across splits -- informational, since the assignment's requirement is
+    # about source-sentence leakage, not target-side uniqueness, and this
+    # must never change what ends up in which split.
+    train_tgt = set(train_df["tgt"])
+    val_tgt = set(val_df["tgt"])
+    test_tgt = set(test_df["tgt"])
+    target_leakage_diagnostic = {
+        "train_val_tgt_overlap": len(train_tgt & val_tgt),
+        "train_test_tgt_overlap": len(train_tgt & test_tgt),
+        "val_test_tgt_overlap": len(val_tgt & test_tgt),
+    }
+
     train_df.to_parquet(TRAIN_PATH, index=False)
     val_df.to_parquet(VAL_PATH, index=False)
     test_df.to_parquet(TEST_PATH, index=False)
+
+    # Small reusable metadata artifact, read by scripts/run_eda.py so its
+    # cleaning-funnel numbers come from this actual run rather than a
+    # hard-coded value left over from a previous one.
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    metadata = {
+        "tokenizer_pool_size": len(tokenizer_pool),
+        "excluded_count": excluded_count,
+        "candidate_pool_after_cleaning": pool_size,
+        "survived_max_len_filter": survivor_count,
+        "observed_retention_rate": retention_rate,
+        "estimated_retention_rate": ESTIMATED_RETENTION,
+        "train_size": len(train_df),
+        "val_size": len(val_df),
+        "test_size": len(test_df),
+        "max_len": MAX_LEN,
+        "target_leakage_diagnostic": target_leakage_diagnostic,
+    }
+    (REPORTS_DIR / "split_metadata.json").write_text(
+        json.dumps(metadata, indent=1), encoding="utf-8"
+    )
 
     print(f"tokenizer pool size (excluded from splits): {len(tokenizer_pool)}")
     print(f"candidates removed (tokenizer pool rows + text overlap): {excluded_count}")
@@ -104,6 +143,7 @@ def main() -> None:
         f"(throwaway-sample estimate was {ESTIMATED_RETENTION:.1%})"
     )
     print(f"train: {len(train_df)}, val: {len(val_df)}, test: {len(test_df)}")
+    print(f"target-side overlap (diagnostic only, not enforced): {target_leakage_diagnostic}")
     print(f"saved to {TRAIN_PATH}, {VAL_PATH}, {TEST_PATH}")
 
 

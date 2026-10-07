@@ -361,22 +361,40 @@ from a Kaggle run.
 
 ## Testing
 
+**A fresh clone cannot run every test immediately.** `data/`, `tokenizers/`, and `checkpoints/` are
+gitignored (generated locally or on Kaggle, not committed), and some tests genuinely need them.
+Tests are split by that dependency:
+
 ```bash
-pytest tests/test_masks.py tests/test_model_shapes.py tests/test_tokenizer.py tests/test_clean.py  # 23 tests, no training
-pytest tests/test_training_smoke.py                                             # trains a tiny model
-pytest extras/tests                                                             # repetition-blocking extra
+# Pure unit tests -- run immediately on a fresh clone, no pipeline needed
+pytest tests/test_masks.py tests/test_model_shapes.py tests/test_clean.py   # 18 tests, no training, no data
+
+# Pipeline/data-dependent -- needs the trained tokenizers + processed train split first;
+# skips with a clear reason (not an error) if those aren't present yet
+pytest tests/test_tokenizer.py   # 5 tests
+
+# Prepare the pipeline first if you haven't:
+python -m src.data.download && python -m src.tokenization.train_tokenizer && python -m src.data.split
+
+pytest tests/test_training_smoke.py   # trains a tiny model; needs the processed split (same prep as above)
+pytest extras/tests                   # repetition-blocking extra, no pipeline needed
 ```
 
 The spec tests cover:
-- `tests/test_masks.py`: causal leak invariance on the full model, a negative control that a broken
-  mask fails, and cell-by-cell checks of the decoder self-attention and cross-attention masks.
-- `tests/test_model_shapes.py`: output shapes across batch and sequence lengths, raw logits, and the
-  parameter count.
-- `tests/test_tokenizer.py`: special-token ids and round-trips for English and Odia.
-- `tests/test_clean.py`: NFC normalization (including idempotency), zero-width character handling
-  (edge joiners, interior joiner runs vs. a lone meaningful joiner, ZWSP/BOM), whitespace
-  normalization, and the word-count filter's boundaries.
-- `tests/test_training_smoke.py`: the training loop trains a small model and the checkpoint reloads.
+- `tests/test_masks.py` *(pure unit)*: causal leak invariance on the full model, a negative control
+  that a broken mask fails, and cell-by-cell checks of the decoder self-attention and cross-attention
+  masks.
+- `tests/test_model_shapes.py` *(pure unit)*: output shapes across batch and sequence lengths, raw
+  logits, and a synthetic-vocab parameter-count sanity bound.
+  `test_param_count_matches_real_tokenizers` additionally reports the real parameter count against
+  the trained tokenizers if present, and skips cleanly if not.
+- `tests/test_clean.py` *(pure unit)*: NFC normalization (including idempotency), zero-width
+  character handling (edge joiners, interior joiner runs vs. a lone meaningful joiner, ZWSP/BOM),
+  whitespace normalization, and the word-count filter's boundaries.
+- `tests/test_tokenizer.py` *(pipeline-dependent)*: special-token ids and round-trips for English and
+  Odia, against the real trained tokenizers and processed train split.
+- `tests/test_training_smoke.py` *(pipeline-dependent)*: the training loop trains a small model on
+  the real processed split and the checkpoint reloads.
 
 ## Data & Acknowledgments
 
