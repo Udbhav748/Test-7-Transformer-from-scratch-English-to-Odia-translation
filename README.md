@@ -134,7 +134,7 @@ that satisfies it in
 | Inference | 3 | ✅ all met (2 exceeded) |
 | Evaluation | 4 | ✅ all met (1 exceeded) |
 | Odia-specific handling / extra credit | 3 | ✅ all met (1 exceeded) |
-| **Total** | **28** | **28/28 — 5 exceeded the requirement** |
+| **Total** | **28** | **28/28 — 4 exceeded the requirement** |
 
 "Exceeded" means the project does something beyond what was strictly asked for: beam search
 a measured subword-tokenization

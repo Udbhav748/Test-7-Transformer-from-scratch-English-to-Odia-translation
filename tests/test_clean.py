@@ -23,7 +23,7 @@ def test_nfc_normalize_composes_decomposed_form():
 
 
 def test_nfc_normalize_is_idempotent():
-    text = "ଓଡିଆ"  # ଓଡ଼ିଆ ("Odia"), already NFC
+    text = "ଓଡ଼ିଆ"  # "Odia", already NFC
     once = nfc_normalize(text)
     twice = nfc_normalize(once)
     assert once == twice == text

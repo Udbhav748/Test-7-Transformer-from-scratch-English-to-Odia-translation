@@ -81,11 +81,15 @@ go beyond a generic "morphologically rich language" caveat:
   enough, it turns out, that Odia's merges ran out before reaching the configured 8,000-token
   budget at all (see above).
 - **Conjunct/virama sequences and normalization.** Consonant conjuncts and vowel signs can, in
-  principle, be represented by more than one equivalent Unicode byte sequence; NFC normalization
-  before tokenizer training and before every encode call is what keeps "the same" Odia character
-  from being learned and encoded as two different token sequences. An idempotency check on 500 Odia
-  samples found 0 anomalies, i.e. NFC was already effectively normalizing this corpus's Odia text
-  correctly, but this is corpus-dependent and should not be assumed without checking.
+  principle, be represented by more than one equivalent Unicode byte sequence. NFC normalization is
+  applied during corpus cleaning (`clean_text()` in `src/data/clean.py`), before tokenizer training
+  and before the cleaned sentences are written into the processed dataset, ensuring that the
+  production training and evaluation text uses normalized Unicode throughout -- this is what keeps
+  "the same" Odia character from being learned and encoded as two different token sequences.
+  (`encode()` itself does not perform NFC normalization; it operates on text that was already
+  normalized upstream during cleaning.) An idempotency check on 500 Odia samples found 0 anomalies,
+  i.e. NFC was already effectively normalizing this corpus's Odia text correctly, but this is
+  corpus-dependent and should not be assumed without checking.
 
 The practical consequence for translation quality: the decoder has to get many more subword
 decisions right per sentence on the Odia side than an English-only intuition would suggest, and
