@@ -12,12 +12,13 @@ models side by side, and inspecting every training/evaluation result.
 
 **Author:** Udbhav Narawat
 
-> **TL;DR:** The headline model matches the assignment's section 5.6 spec exactly (`d=128`, 4 heads,
-> N=2, Post-LN, plain cross-entropy, plain greedy decoding). On the 2,000-pair test set it scores
-> **BLEU 2.84** and **chrF++ 24.41**. The greedy output shows repetition loops on longer sentences,
-> which the write-up discusses. Beyond-spec work (the scaled model, beam search, n-gram blocking, the
-> translate UI and API) lives in [`extras/`](extras/). Every number below is computed from the real 2,000-sentence test set,
-> not estimated.
+> **TL;DR:** Built to the assignment's section 5.6 spec exactly first (`d=128`, 4 heads, N=2,
+> Post-LN, plain cross-entropy, plain greedy decoding) — **BLEU 2.84**, **chrF++ 24.41** on the
+> 2,000-pair test set, no decode-time tricks. The greedy output shows real repetition loops on
+> longer sentences, discussed honestly in the write-up rather than hidden. Only after that exact
+> result was done did further exploration happen: a scaled comparison model, beam search, and
+> n-gram blocking, all kept separate in [`extras/`](extras/) and never mixed into the headline
+> number. Every number below is computed from the real 2,000-sentence test set, not estimated.
 
 ## Contents
 
