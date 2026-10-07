@@ -139,7 +139,7 @@
     {
      "requirement": "Beam search (spec's explicit bonus-marks item)",
      "status": "exceeded",
-     "evidence": "Beam search (width 4, length penalty 0.6) is an extra, kept in extras/inference/beam_search.py. On the 2,000-pair test set it scores BLEU 2.65 and chrF++ 23.34 (reports/beam_eval_results.json), against 2.22 and 22.23 for greedy in the earlier run. Not re-measured on the spec-only checkpoint.",
+     "evidence": "Beam search (width 4, length penalty 0.6) is an extra in extras/inference/beam_search.py. On the spec-only headline checkpoint it scores BLEU 3.55 and chrF++ 25.65 over the 2,000-pair test set (reports/beam_eval_results.json), against 2.84 and 24.41 for greedy. Not used in the headline result.",
      "where": "extras/inference/beam_search.py, extras/config.py, reports/beam_eval_results.json"
     },
     {

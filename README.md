@@ -64,13 +64,14 @@ Two models were trained and are compared throughout the dashboard and write-up:
 | Layers (enc + dec) | 2 + 2 | 4 + 4 |
 | Hidden size | 128 | 256 |
 | Attention heads | 4 | 8 |
-| Hardware | Kaggle CPU | Tesla T4 GPU |
+| Hardware | Kaggle Tesla T4 GPU | Tesla T4 GPU |
 | Epochs | 40 | 25 |
 | Training data | 36,000 pairs | 60,000 pairs |
 | Best validation loss | 1.81 | 3.56 |
 | Test BLEU (greedy, spec) | **2.84** | 0.25 |
 | Test chrF++ (greedy, spec) | **24.41** | 14.32 |
-| Test BLEU (beam search, extras) | not re-measured | — |
+| Test BLEU (beam search, extras) | 3.55 | — |
+| Test chrF++ (beam search, extras) | 25.65 | — |
 
 > The scaled model's 0.25 BLEU is a **greedy-decode** number, not the full picture — it was trained
 > for 25 epochs vs. the baseline's 40, and greedy decoding is exactly the failure mode this project
@@ -133,6 +134,10 @@ supposed to predict (a common and easy-to-miss bug in causal masking).
 
 ## Screenshots
 
+> The translate page screenshot is current. The other dashboard screenshots below come from the
+> earlier Streamlit runs, including the scaled comparison and the label-smoothing/blocking runs. They
+> are not the spec-only headline results (see [Results](#results)).
+
 ### Translate page (local model through the API)
 Type an English sentence and translate it with greedy (spec) or beam search (bonus). The page calls
 `server/api.py` on port 8000 through the Vite dev server. Run it with `python -m uvicorn server.api:app --port 8000`
@@ -177,6 +182,10 @@ Why Odia needs more subword tokens than English, and how the text pipeline works
 ![Architecture & Linguistics tab](docs/screenshots/05_architecture_linguistics.png)
 
 ## Analysis Figures
+
+> These figures were generated from earlier runs and the scaled comparison model. They are kept for
+> reference and do not match the spec-only headline checkpoint (BLEU 2.84, chrF++ 24.41). Regenerating
+> them needs the notebook run on the current checkpoint.
 
 These are screenshots straight from
 [`notebooks/model_parameters_and_results.ipynb`](notebooks/model_parameters_and_results.ipynb) —
@@ -232,36 +241,44 @@ both checkpoints ([`reports/model_comparison.json`](reports/model_comparison.jso
 ## Project Structure
 
 ```
-app.py                    Streamlit dashboard (entry point)
-project_data.py           Loads reports/checkpoints for the dashboard
+src/                        The assignment pipeline (spec path)
+├── data/                   Download, clean, split the parallel corpus
+├── tokenization/           Byte-level BPE tokenizer training/loading
+├── model/                  Transformer: attention, encoder, decoder, embeddings, masks
+├── training/               Training loop, Noam LR schedule, checkpointing
+├── inference/              Greedy decoding
+└── evaluation/             BLEU/chrF++ scoring, sample translation selection
 
-src/                       Core library
-├── data/                  Download, clean, split the parallel corpus
-├── tokenization/          Byte-level BPE tokenizer training/loading
-├── model/                 Transformer: attention, encoder, decoder, embeddings, masks
-├── training/               Training loop, LR schedule, checkpointing
-├── inference/               Greedy decode, beam search, repetition blocking, attention extraction
-└── evaluation/             BLEU scoring, sample translation selection
+configs/base.py             Frozen hyperparameters and paths (spec values)
+scripts/                    Spec pipeline entry points (run_eda, run_evaluation, run_length_quality_analysis, ...)
+tests/                      pytest tests for masks, model shapes, tokenizer, training smoke
 
-configs/base.py            Frozen hyperparameters and paths
-scripts/                   Pipeline entry points (run_eda.py, run_evaluation.py, ...)
-tests/                     pytest unit + smoke tests
+extras/                     Beyond-spec work, not used by the headline results
+├── inference/              Beam search, n-gram repetition blocking, attention extraction
+├── model/                  Scaled comparison model (d=256, Pre-LN, weight tying)
+├── scripts/                Beam eval, scaled eval, attention demo
+├── tests/                  Repetition-blocking tests
+├── api/                    Local inference API (FastAPI)
+├── ui/                     React translate page (Vite + Tailwind)
+├── app.py                  Streamlit dashboard (earlier comparison UI)
+└── config.py               Beam and blocking settings
 
-notebooks/                  Training notebooks
-├── model_parameters_and_results.ipynb   Full walkthrough: architecture, data, training, eval
-├── train_scaled_transformer_colab.ipynb  Trains the scaled model on a free Colab GPU
-└── kaggle/                 Notebooks + metadata used to train on Kaggle GPU/CPU
+notebooks/                  Notebooks
+├── model_parameters_and_results.ipynb   Earlier walkthrough with the scaled comparison
+├── train_scaled_transformer_colab.ipynb  Trains the scaled model on a free Colab GPU (extras)
+└── kaggle/                 Notebooks and kernel metadata used to train on Kaggle
 
 reports/                    Results (tracked in git)
 ├── write_up.md              Full technical write-up
 ├── requirements_coverage.json
-├── eval_results.json / scaled_eval_results.json
-├── training_history.json / scaled_training_history.json
+├── eval_results.json        Headline greedy evaluation (spec)
 ├── length_quality_analysis.json
-└── figures/                  Generated comparison charts (gitignored, regenerate via scripts)
+├── training_history.json    Headline 40-epoch run
+├── beam_eval_results.json   Beam search on the headline checkpoint (extras): BLEU 3.55, chrF++ 25.65
+└── figures/                  Generated charts (gitignored, regenerate via scripts)
 
-docs/screenshots/           Dashboard screenshots used in this README
-docs/figures/               Full-resolution analysis figures used in this README
+docs/screenshots/           Screenshots used in this README
+docs/figures/               Analysis figures used in this README
 
 data/, tokenizers/, checkpoints/   Generated locally by the pipeline (gitignored)
 ```
@@ -272,83 +289,52 @@ data/, tokenizers/, checkpoints/   Generated locally by the pipeline (gitignored
 pip install -r requirements.txt
 ```
 
-## Run the Dashboard
+## Run the Translate Page (extras)
 
 ```bash
-streamlit run app.py
+python -m uvicorn extras.api.api:app --port 8000
+cd extras/ui && npm install && npm run dev
 ```
 
-Opens at `http://localhost:8501` with four tabs: Translator, Model Comparison, Training &
-Benchmarks, and Architecture & Linguistics.
+Open `http://localhost:5173`. The page calls the local API on port 8000 and translates with greedy
+(spec) or beam search (extras). It needs `checkpoints/kaggle_run_best.pt` and `tokenizers/*.json`
+from a Kaggle run.
 
 ## Reproduce the Pipeline
 
 1. `python -m src.data.download` — download raw pairs into `data/raw/`
-2. `python -m src.data.split` — clean + split into `data/processed/{train,val,test}.parquet`
-3. `python -m src.tokenization.train_tokenizer` — train the English/Odia BPE tokenizers
+2. `python -m src.tokenization.train_tokenizer` — train the English/Odia BPE tokenizers on the reserved pool
+3. `python -m src.data.split` — clean + split into `data/processed/{train,val,test}.parquet`
 4. Train the model — full runs were done on Kaggle (see `notebooks/kaggle/`); for a quick local
    correctness check use `python scripts/run_local_smoke_test.py`
-5. `python scripts/run_evaluation.py` — BLEU + sample translations
-6. `python scripts/run_length_quality_analysis.py` — BLEU/repetition vs. sentence length
-7. `python scripts/run_attention_demo.py` — attention-weight extraction for the dashboard
-8. `python scripts/run_eda.py` — corpus/tokenizer statistics
+5. `python scripts/run_evaluation.py` — greedy BLEU, chrF++ and sample translations
+6. `python scripts/run_length_quality_analysis.py` — BLEU and repetition vs. sentence length
+7. `python scripts/run_eda.py` — corpus and tokenizer statistics
 
 ## Notebooks
 
-- **`notebooks/model_parameters_and_results.ipynb`** — the main results notebook: architecture
-  breakdown, dataset stats, training curves, BLEU evaluation, sample translations, length-vs-quality
-  analysis, attention visualization, and a baseline-vs-scaled comparison.
-- **`notebooks/train_scaled_transformer_colab.ipynb`** — trains the scaled (11.5M param) model on a
-  free Google Colab T4 GPU in about 20–25 minutes.
-- **`notebooks/kaggle/`** — the notebooks actually run on Kaggle to produce the checkpoints used in
-  this repo (`en_or_transformer.ipynb` for the baseline, `scaled_en_or_transformer.ipynb` for the
-  scaled model), plus their Kaggle kernel metadata.
+- **`notebooks/kaggle/en_or_transformer.ipynb`** — the headline spec run on Kaggle. It downloads
+  the data, trains the tokenizers and model, and writes the checkpoint.
+- **`notebooks/kaggle/scaled_en_or_transformer.ipynb`** and
+  **`notebooks/train_scaled_transformer_colab.ipynb`** — the scaled comparison model (extras).
+- **`notebooks/model_parameters_and_results.ipynb`** — an earlier walkthrough that still shows the
+  scaled comparison and older runs.
 
 ## Testing
 
 ```bash
-pytest tests/
+pytest tests/test_masks.py tests/test_model_shapes.py tests/test_tokenizer.py   # 13 tests, no training
+pytest tests/test_training_smoke.py                                             # trains a tiny model
+pytest extras/tests                                                             # repetition-blocking extra
 ```
 
-18 tests covering causal masking, model output shapes, repetition blocking, tokenizer round-trips,
-and a full training-loop smoke test (loss must actually decrease and the checkpoint must reload
-correctly).
-
-The masking tests (`tests/test_masks.py`) are worth calling out specifically, since a broken
-causal mask is the failure mode the assignment brief explicitly warns about:
-- `test_causal_leak_invariance_full_model` — changing a future token must not change the current
-  prediction, run through the full model end-to-end
-- `test_causal_mask_negative_control_has_teeth` — a deliberately *broken* mask is asserted to fail
-  the test, so the leak check above isn't just trivially passing
-- `test_decoder_self_attn_mask_explicit_coverage` / `test_cross_attn_mask_explicit_coverage` — the
-  mask tensors themselves are checked cell-by-cell against what they should allow and block
-
-Actual output from running `pytest tests/ -v` in this repo:
-
-```
-collected 18 items
-
-tests/test_masks.py::test_causal_leak_invariance_full_model PASSED       [  5%]
-tests/test_masks.py::test_causal_mask_negative_control_has_teeth PASSED  [ 11%]
-tests/test_masks.py::test_decoder_self_attn_mask_explicit_coverage PASSED [ 16%]
-tests/test_masks.py::test_cross_attn_mask_explicit_coverage PASSED       [ 22%]
-tests/test_model_shapes.py::test_shapes_various_batch_and_seq_lengths PASSED [ 27%]
-tests/test_model_shapes.py::test_shapes_with_right_padding PASSED        [ 33%]
-tests/test_model_shapes.py::test_forward_returns_raw_logits_not_probabilities PASSED [ 38%]
-tests/test_model_shapes.py::test_param_count_sanity_and_report PASSED    [ 44%]
-tests/test_repetition.py::test_banned_ngram_tokens_blocks_the_completing_token PASSED [ 50%]
-tests/test_repetition.py::test_banned_ngram_tokens_empty_when_no_repeat_yet PASSED [ 55%]
-tests/test_repetition.py::test_banned_ngram_tokens_short_sequence_returns_empty PASSED [ 61%]
-tests/test_repetition.py::test_greedy_decode_never_repeats_ngram_on_random_model PASSED [ 66%]
-tests/test_tokenizer.py::test_special_token_ids_en PASSED                [ 72%]
-tests/test_tokenizer.py::test_special_token_ids_or PASSED                [ 77%]
-tests/test_tokenizer.py::test_roundtrip_english PASSED                   [ 83%]
-tests/test_tokenizer.py::test_roundtrip_odia PASSED                      [ 88%]
-tests/test_tokenizer.py::test_odia_encoding_wraps_with_sos_eos PASSED    [ 94%]
-tests/test_training_smoke.py::test_loss_decreases_and_checkpoint_round_trips PASSED [100%]
-
-============================= 18 passed in 48.21s =============================
-```
+The spec tests cover:
+- `tests/test_masks.py`: causal leak invariance on the full model, a negative control that a broken
+  mask fails, and cell-by-cell checks of the decoder self-attention and cross-attention masks.
+- `tests/test_model_shapes.py`: output shapes across batch and sequence lengths, raw logits, and the
+  parameter count.
+- `tests/test_tokenizer.py`: special-token ids and round-trips for English and Odia.
+- `tests/test_training_smoke.py`: the training loop trains a small model and the checkpoint reloads.
 
 ## Data & Acknowledgments
 

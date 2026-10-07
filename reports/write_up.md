@@ -169,9 +169,10 @@ correlation with source word length is −0.20. Quality falls as sentences get l
 ### Discussion: limitations
 
 The main limitation is greedy decoding on longer inputs. The model's greedy output repeats words or
-phrases (samples 2 and 5), and the length study shows this rising with sentence length. Beam search
-and n-gram blocking can reduce the loops, and both are in `extras/`, but they are not part of the
-headline result and beam search has not been re-measured on this checkpoint.
+phrases (samples 2 and 5), and the length study shows this rising with sentence length. Beam search (`reports/beam_eval_results.json`, width 4, same checkpoint) scores BLEU 3.55 and
+chrF++ 25.65, against 2.84 and 24.41 for greedy. Its brevity penalty (0.804) shows it produces
+shorter output, which is most of the gain. It still repeats on some inputs (sample 2 above). Both
+beam search and n-gram blocking are in `extras/` and are not part of the headline result.
 
 The capacity limit remains: a 4M-parameter model (`d=128`, 2 decoder layers) trained on 36,000 pairs.
 That size is deliberate under the "must fit class compute" constraint. It also explains the low
