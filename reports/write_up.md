@@ -152,6 +152,18 @@ whitespace) on hypotheses and references.
 
 ### 5 sample translations
 
+> **Selector note:** the table below was generated under an earlier version of the long-sentence
+> selector (≥90th-percentile source length, which could be as short as 16 words). The selector has
+> since been improved (`src/evaluation/sample_translations.py`) to prefer a source sentence of at
+> least 21 English words, falling back to the single longest available sentence -- unambiguously
+> long to a human reader rather than merely above a percentile. The samples below were not
+> regenerated under the new rule: re-evaluating locally with this development machine's current
+> checkpoint/test-split artifacts produced a different BLEU than the documented headline run
+> (a real discrepancy, consistent with the previously-identified provenance gap between this
+> machine's data/ artifacts and the exact ones from the real Kaggle run), so no new sample output
+> was generated from them rather than risk showing output misattributed to the real headline
+> checkpoint. BLEU/chrF++ above are the real, unmodified headline numbers.
+
 | # | Source (English) | Reference (Odia) | Model output (greedy) |
 |---|---|---|---|
 | 1 | Chennai Super Kings made the cut. | ଚେନ୍ନଇ ସୁପର କିଙ୍ଗ୍‌ସ ଟସ୍ ଜିତି ଫିଲ୍‌ଡିଂ କରିଥିଲା। | ସୁପର ଚେନ୍ନାଇ ସୁପରକୁଟିଏ ସୁପର ମ୍ୟାଚ୍‌ରେ ସୁପରିକଳ୍ପ କରିଥିଲେ । |

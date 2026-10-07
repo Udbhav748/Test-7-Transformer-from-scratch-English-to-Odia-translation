@@ -78,4 +78,14 @@ GREEDY_MAX_DECODE_LEN = MAX_LEN
 
 # --- Evaluation ---
 NUM_SAMPLE_TRANSLATIONS = 5
+# Used by extras/scripts/run_scaled_evaluation.py (scaled model, out of
+# scope for the headline path). The headline selector in
+# src/evaluation/sample_translations.py uses LONG_SENTENCE_MIN_WORDS
+# instead, below.
 LONG_SENTENCE_PERCENTILE = 0.90
+# Headline long-sample rule: prefer a source sentence with at least this
+# many English words, so the sample is unambiguously long to a human
+# reader rather than merely above a percentile that could still look
+# ordinary. Falls back to the single longest available test sentence if
+# none meets this bound (see select_samples()).
+LONG_SENTENCE_MIN_WORDS = 21

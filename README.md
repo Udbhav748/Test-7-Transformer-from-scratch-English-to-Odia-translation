@@ -109,8 +109,16 @@ word/subword n-gram matching is harsh on near-miss inflections that chrF++ still
 credit for.
 
 The headline evaluation (`reports/eval_results.json`) includes 5 sample translations — 4 chosen at
-random from the test set and a 5th **deterministically selected from the ≥90th-percentile sentence
-length**. The length-vs-quality study (`reports/length_quality_analysis.json`) covers all 2,000 pairs.
+random from the test set and a 5th **deterministically selected to be unambiguously long: at least
+21 English words if the test split has one, falling back to the single longest available sentence
+otherwise** (`src/evaluation/sample_translations.py`, `LONG_SENTENCE_MIN_WORDS=21`). An earlier
+version of the selector used a ≥90th-percentile threshold instead, which could select a sentence as
+short as 16 words; the samples in the committed `reports/eval_results.json` were generated under
+that earlier rule and have not been regenerated under the new one -- the checkpoint/test-split
+artifacts currently on this development machine were found not to exactly reproduce the documented
+headline BLEU when re-evaluated locally, so no new sample output was generated from them rather
+than risk showing output misattributed to the real headline checkpoint. The length-vs-quality study
+(`reports/length_quality_analysis.json`) covers all 2,000 pairs.
 
 Length buckets (mean sentence BLEU, by source word count): 3–5 words **10.27**, 6–8 **7.69**,
 9–11 **7.12**, 12–15 **5.68**, 16–20 **4.68**, 21+ **3.40**. Overall mean sentence BLEU is 7.77, and

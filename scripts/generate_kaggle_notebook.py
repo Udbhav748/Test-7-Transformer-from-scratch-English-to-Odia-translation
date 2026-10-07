@@ -115,7 +115,12 @@ training pass on GPU, then evaluates the best checkpoint with plain greedy
 decoding (the graded headline path -- not beam search, which is bonus
 exploration kept in `extras/`)."""),
         code("""
-!pip install -q datasets tokenizers sacrebleu
+# Pinned to the exact versions in requirements.txt, not whatever Kaggle's
+# image happens to have, so the notebook installs the same dependencies
+# that were used for local development and testing. Intentionally not the
+# full requirements.txt -- that also pulls in UI/test-only packages this
+# notebook doesn't need.
+!pip install -q datasets==5.0.1 tokenizers==0.22.2 sacrebleu==2.6.0
 """),
         build_materialize_cell(texts),
         md("""## Data

@@ -169,7 +169,7 @@
     {
      "requirement": "One long sentence among the samples",
      "status": "met",
-     "evidence": "select_samples deterministically reserves the 5th slot for a source sentence at or above the 90th percentile of test-split source word length (LONG_SENTENCE_PERCENTILE=0.90), drawing the other 4 from the remainder; the selected long example in the current headline run is 'On account of heavy rains in the city, the schools and colleges of Mumbai are shut.' (16 English words).",
+     "evidence": "select_samples deterministically reserves the 5th slot for a source sentence with at least LONG_SENTENCE_MIN_WORDS=21 English words (falling back to the single longest available test sentence if none meets that bound), so the sample is unambiguously long to a human reader rather than merely above a percentile. The committed reports/eval_results.json sample was generated under an earlier percentile-based rule (≥90th percentile, could be as short as 16 words) and has not been regenerated under the new rule, since this machine's local checkpoint/data artifacts were found not to exactly reproduce the documented headline BLEU when tested -- see reports/write_up.md's selector note.",
      "where": "src/evaluation/sample_translations.py:10-24, reports/eval_results.json:8-34"
     },
     {
