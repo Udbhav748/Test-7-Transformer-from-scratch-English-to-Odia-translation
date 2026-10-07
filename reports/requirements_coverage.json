@@ -7,7 +7,7 @@
     {
      "requirement": "Parallel sentence pairs",
      "status": "met",
-     "evidence": "58,000 English-Odia candidate pairs were streamed from the ai4bharat/samanantar 'or' config and saved to data/raw/candidates.parquet; after MAX_LEN=64 subword filtering 40,000 pairs were seed-shuffled (RANDOM_SEED=42) into on-disk splits of 36,000 train / 2,000 val / 2,000 test.",
+     "evidence": "English-Odia candidate pairs were streamed from the ai4bharat/samanantar 'or' config into data/raw/candidates.parquet, target 75,000 (CANDIDATE_POOL_SIZE). A seeded 15,000-pair tokenizer pool is set aside and excluded from every split (train, val and test); after MAX_LEN=64 subword filtering on the remaining candidates (76.4% retention), 40,000 pairs were seed-shuffled (RANDOM_SEED=42) into on-disk splits of 36,000 train / 2,000 val / 2,000 test.",
      "where": "src/data/download.py, src/data/split.py, configs/base.py, data/processed/*.parquet"
     },
     {
@@ -67,7 +67,7 @@
     {
      "requirement": "Linear + softmax output",
      "status": "met",
-     "evidence": "Seq2SeqTransformer ends in a separate nn.Linear(128, tgt_vocab) output projection that returns raw logits, untied from the target embedding. Softmax is applied by nn.CrossEntropyLoss in training and by greedy argmax at decode time.",
+     "evidence": "Seq2SeqTransformer ends in a separate nn.Linear(128, tgt_vocab) output projection that returns raw logits, untied from the target embedding -- there is no Softmax module in the forward pass. nn.CrossEntropyLoss applies the required log-softmax internally during training. At inference, greedy decoding takes argmax directly over the logits (identical to argmax over softmax(logits), since softmax is monotonic, so no softmax computation happens there either); beam search computes an explicit log_softmax since it needs real log-probabilities to score beams.",
      "where": "src/model/transformer.py:42,54, src/training/train.py:75"
     },
     {

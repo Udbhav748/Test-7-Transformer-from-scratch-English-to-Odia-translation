@@ -20,8 +20,21 @@ models side by side, and inspecting every training/evaluation result.
 > n-gram blocking, all kept separate in [`extras/`](extras/) and never mixed into the headline
 > number. Every number below is computed from the real 2,000-sentence test set, not estimated.
 
+## Graded path vs. extras
+
+| | Path | Contains | Headline result? |
+|---|---|---|---|
+| **Graded / exact Test-7 path** | [`src/`](src/) | data, tokenization, model, training, inference (plain greedy), evaluation | **Yes — BLEU 2.84, chrF++ 24.41 come from here, and only from here.** |
+| **Bonus / exploration path** | [`extras/`](extras/) | beam search, n-gram repetition blocking, the scaled Transformer, attention visualization, the local API, the translate UI, the Streamlit dashboard | No. Never mixed into the headline numbers. |
+
+The scaled Transformer in `extras/` is **not** part of the required section 5.6 architecture —
+it's a separate, larger model built afterward to see whether more capacity helps. If a number
+in this README isn't explicitly labelled "extras," "scaled," "beam," or "bonus," it's from the
+spec-exact `src/` pipeline above.
+
 ## Contents
 
+- [Graded path vs. extras](#graded-path-vs-extras)
 - [Architecture](#architecture)
 - [Results](#results)
 - [Requirement Coverage](#requirement-coverage)
@@ -30,7 +43,7 @@ models side by side, and inspecting every training/evaluation result.
 - [Analysis Figures](#analysis-figures)
 - [Project Structure](#project-structure)
 - [Setup](#setup)
-- [Run the Dashboard](#run-the-dashboard)
+- [Run the Translate Page (extras)](#run-the-translate-page-extras)
 - [Reproduce the Pipeline](#reproduce-the-pipeline)
 - [Notebooks](#notebooks)
 - [Testing](#testing)
@@ -48,6 +61,14 @@ The baseline is the assignment's section 5.6 architecture and uses **Post-LN** (
 residual add), not the more common Pre-LN, because that's the layer ordering the brief describes.
 Pre-LN and weight tying appear only in the scaled comparison model, which is not the section 5.6
 architecture.
+
+The final decoder representation is projected to target-vocabulary logits with a plain
+`nn.Linear` layer (`src/model/transformer.py`) — there is no separate `Softmax` module in the
+forward pass. During training, `nn.CrossEntropyLoss` applies the required log-softmax internally;
+at inference, greedy decoding takes `argmax` directly over the logits (mathematically identical to
+`argmax` over softmax of the same logits, since softmax is monotonic, so no softmax computation is
+needed there either). This satisfies the assignment's "linear + softmax" requirement without the
+model itself returning softmax probabilities from its forward pass.
 
 Below is the real, computed parameter breakdown of the instantiated baseline model — not an
 illustration, the actual output of `model.named_parameters()` grouped by component
@@ -68,7 +89,7 @@ Two models were trained and are compared throughout the dashboard and write-up:
 | Hardware | Kaggle Tesla T4 GPU | Tesla T4 GPU |
 | Epochs | 40 | 25 |
 | Training data | 36,000 pairs | 60,000 pairs |
-| Best validation loss | 1.81 | 3.56 |
+| Best validation loss | 1.55 | 3.56 |
 | Test BLEU (greedy, spec) | **2.84** | 0.25 |
 | Test chrF++ (greedy, spec) | **24.41** | 14.32 |
 | Test BLEU (beam search, extras) | 3.55 | — |
@@ -197,7 +218,9 @@ the actual code cell and its output, so you can see exactly what ran to produce 
 the notebook and run it yourself to get the same results.
 
 ### Baseline model: dataset & tokenizer stats
-Pair-retention rate vs. the `MAX_LEN` cutoff, and the subword-count gap between English and Odia at the actual 8k vocabulary size.
+Pair-retention rate vs. the `MAX_LEN` cutoff, and the subword-count gap between English and Odia
+at the real trained vocabulary sizes (English 8,000 — hit the target; Odia 6,882 — BPE undershot
+the configured 8,000 on this corpus size).
 ![Dataset and tokenizer statistics from the notebook](docs/figures/notebook_dataset_tokenizer_stats.png)
 
 ### Baseline model: training loss & perplexity
@@ -221,10 +244,11 @@ Full-scale view plus a zoomed-in convergence region (epoch 5+). This is also the
 sanity check the assignment brief specifically warns about: if the decoder could "peek" at the
 token it's supposed to predict, validation loss would collapse toward zero — dramatically and
 suspiciously lower than training loss. Neither curve does that. The baseline's val and train
-losses track closely together (2.85 vs. 2.71 at the final epoch); the scaled model's val loss
-sits a little *below* train (3.56 vs. 3.63), which is the normal, expected effect of label
-smoothing inflating the reported training loss and dropout being active only during training —
-not the sharp collapse a real masking leak would cause.
+losses track closely together (1.55 vs. 1.31 at the final epoch, val consistently at or above
+train, dropout active only during training); the scaled model's val loss sits a little *below*
+train (3.56 vs. 3.63), the normal, expected effect of label smoothing inflating the reported
+training loss there (the scaled model still uses it; the baseline no longer does) — neither is
+the sharp collapse a real masking leak would cause.
 ![Baseline vs. scaled loss curves](docs/figures/notebook_comparison_loss.png)
 
 ### Baseline vs. scaled: parameter breakdown by component
@@ -317,12 +341,18 @@ from a Kaggle run.
 
 ## Notebooks
 
-- **`notebooks/kaggle/en_or_transformer.ipynb`** — the headline spec run on Kaggle. It downloads
-  the data, trains the tokenizers and model, and writes the checkpoint.
+> **Primary Test-7 notebook:** [`notebooks/kaggle/en_or_transformer.ipynb`](notebooks/kaggle/en_or_transformer.ipynb) —
+> this is the exact assignment/spec run. Every other notebook below is optional extra exploration,
+> not the canonical graded run.
+
+- **`notebooks/kaggle/en_or_transformer.ipynb`** — **the canonical Test-7 run.** Downloads the
+  data, trains the tokenizers and the section 5.6 model on Kaggle, and writes the headline
+  checkpoint that every BLEU/chrF++ number in this README comes from.
 - **`notebooks/kaggle/scaled_en_or_transformer.ipynb`** and
-  **`notebooks/train_scaled_transformer_colab.ipynb`** — the scaled comparison model (extras).
-- **`notebooks/model_parameters_and_results.ipynb`** — an earlier walkthrough that still shows the
-  scaled comparison and older runs.
+  **`notebooks/train_scaled_transformer_colab.ipynb`** — optional extra exploration: the scaled
+  comparison model (`extras/`), not part of the assignment architecture.
+- **`notebooks/model_parameters_and_results.ipynb`** — an analysis/comparison notebook (parameter
+  breakdown, dataset stats, baseline-vs-scaled comparison), not the canonical graded run.
 
 ## Testing
 

@@ -18,6 +18,12 @@ FFN, each with residual + LayerNorm) -> linear projection + softmax.
 | vocab sizes | English 8,000 (hit the target); Odia 6,882 (BPE undershot the configured 8,000 -- not enough distinct merges on this corpus size) |
 | total parameters | 3,718,370 (depends on the real Odia vocab above, not the configured target) |
 
+The forward pass returns raw logits from the linear output projection, with no separate `Softmax`
+module. `nn.CrossEntropyLoss` applies the required log-softmax internally during training, and
+greedy decoding takes `argmax` directly over the logits at inference (identical to `argmax` over
+`softmax(logits)`, since softmax is monotonic). This is what satisfies "linear + softmax" --
+the model does not literally return softmax probabilities from `forward()`.
+
 Layer normalization is post-norm (residual -> dropout -> LayerNorm), matching the original
 Vaswani et al. ordering the assignment is quoting, not the more recent pre-norm variant.
 
