@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-from--scratch-ee4c2c)
 ![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-ff4b4b)
-![Tests](https://img.shields.io/badge/tests-19%20in%20suite-blue)
+![Tests](https://img.shields.io/badge/tests-28%20in%20suite-blue)
 
 A sequence-to-sequence Transformer built **from scratch in PyTorch** (no `nn.Transformer`) for
 English → Odia machine translation, trained on the [AI4Bharat Samanantar](https://huggingface.co/datasets/ai4bharat/samanantar)
@@ -321,7 +321,7 @@ from a Kaggle run.
 ## Testing
 
 ```bash
-pytest tests/test_masks.py tests/test_model_shapes.py tests/test_tokenizer.py   # 14 tests, no training
+pytest tests/test_masks.py tests/test_model_shapes.py tests/test_tokenizer.py tests/test_clean.py  # 23 tests, no training
 pytest tests/test_training_smoke.py                                             # trains a tiny model
 pytest extras/tests                                                             # repetition-blocking extra
 ```
@@ -332,6 +332,9 @@ The spec tests cover:
 - `tests/test_model_shapes.py`: output shapes across batch and sequence lengths, raw logits, and the
   parameter count.
 - `tests/test_tokenizer.py`: special-token ids and round-trips for English and Odia.
+- `tests/test_clean.py`: NFC normalization (including idempotency), zero-width character handling
+  (edge joiners, interior joiner runs vs. a lone meaningful joiner, ZWSP/BOM), whitespace
+  normalization, and the word-count filter's boundaries.
 - `tests/test_training_smoke.py`: the training loop trains a small model and the checkpoint reloads.
 
 ## Data & Acknowledgments
